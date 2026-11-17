@@ -76,23 +76,23 @@
   ) -> Result<SessionStatus, String>;
   ```
 
-- [ ] **Step 1: Write the failing unit tests in `src-tauri/tests/discovery_caps_test.rs`**
+- [x] **Step 1: Write the failing unit tests in `src-tauri/tests/discovery_caps_test.rs`**
   Test advertising with capabilities (TXT records: `caps`, `res`, `fps`), peer parsing with capability fields, backward compatibility for legacy TXT records, and `initiate_use_as_monitor` command workflow.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test discovery_caps_test`
   Expected: FAIL with missing fields or methods.
 
-- [ ] **Step 3: Implement capabilities in `src-tauri/src/discovery/`**
+- [x] **Step 3: Implement capabilities in `src-tauri/src/discovery/`**
   - Add `capabilities`, `max_resolution`, and `max_fps` fields to `PeerDevice`.
   - Update `MdnsDiscovery::start_advertising_with_caps` to publish RFC-compliant TXT records.
   - Implement `initiate_use_as_monitor` in `src-tauri/src/lib.rs`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test discovery_caps_test`
   Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add src-tauri/src/discovery/ src-tauri/src/lib.rs src-tauri/tests/discovery_caps_test.rs
   git commit -m "feat(discovery): implement mDNS capability broadcast and reverse monitor initiation"
