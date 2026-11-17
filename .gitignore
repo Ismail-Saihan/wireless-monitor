@@ -1,0 +1,21 @@
+# Rust / Cargo
+/src-tauri/target/
+**/*.rs.bk
+Cargo.lock
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+
+# Drivers & Binaries
+drivers/windows/*.cer
+drivers/windows/*.sys
+drivers/windows/*.inf
+*.log
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
