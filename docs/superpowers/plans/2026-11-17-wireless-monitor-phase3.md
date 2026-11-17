@@ -242,23 +242,23 @@
   - Approval Modal popping up when incoming requests arrive on Receiver.
   - Capability badges and active "Use as Monitor" pull workflow in `DeviceList`.
 
-- [ ] **Step 1: Create `ui/src/components/SettingsDrawer.ts`**
+- [x] **Step 1: Create `ui/src/components/SettingsDrawer.ts`**
   Implement slide-out settings panel for Resolution (Auto / 1080p / 1440p / 4K), Framerate (30 / 60 FPS), and Bitrate (10 / 20 / 40 Mbps).
 
-- [ ] **Step 2: Create `ui/src/components/ApprovalModal.ts`**
+- [x] **Step 2: Create `ui/src/components/ApprovalModal.ts`**
   Implement modal showing incoming connection request, peer name, 4-digit PIN verification code, and Accept / Reject buttons.
 
-- [ ] **Step 3: Update `ui/src/components/DeviceList.ts` & `StatusHeader.ts`**
+- [x] **Step 3: Update `ui/src/components/DeviceList.ts` & `StatusHeader.ts`**
   - Add Capability tags (e.g., `1080p`, `60 FPS`, `Host/Recv`).
   - Add Settings button/icon in header to trigger Settings Drawer.
   - Wire "Use as Monitor" button to invoke `initiate_use_as_monitor`.
 
-- [ ] **Step 4: Update `ui/src/main.ts` & `ui/index.html`**
+- [x] **Step 4: Update `ui/src/main.ts` & `ui/index.html`**
   - Integrate `SettingsDrawer` and `ApprovalModal`.
   - Poll for incoming connection requests in receiver mode and display modal automatically.
   - Verify TypeScript compilation: `npx tsc --noEmit`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add ui/
   git commit -m "feat(ui): implement settings drawer, incoming connection approval modal and reverse initiation"
