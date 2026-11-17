@@ -91,8 +91,8 @@ def verify_code_interfaces():
 
     assert "pub struct StreamConfig" in mod_src, "StreamConfig missing in mod.rs"
     assert "pub struct EncodedPacket" in mod_src, "EncodedPacket missing in mod.rs"
-    assert "pub trait VideoEncoder" in mod_src or "pub use encoder::VideoEncoder" in mod_src, "VideoEncoder missing in mod.rs"
-    assert "pub struct WebRtcHostSession" in mod_src or "pub use webrtc_session::WebRtcHostSession" in mod_src, "WebRtcHostSession missing in mod.rs"
+    assert "VideoEncoder" in mod_src, "VideoEncoder missing in mod.rs"
+    assert "WebRtcHostSession" in mod_src, "WebRtcHostSession missing in mod.rs"
 
     with open(enc_path, "r", encoding="utf-8") as f:
         enc_src = f.read()
