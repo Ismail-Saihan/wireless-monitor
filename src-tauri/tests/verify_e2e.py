@@ -63,7 +63,8 @@ def check_file_balance(path):
             elif c == '"':
                 in_str = True
             elif c == "'":
-                in_char = True
+                if (i + 2 < n and content[i + 2] == "'") or (i + 3 < n and content[i + 1] == "\\" and content[i + 3] == "'"):
+                    in_char = True
             elif c in counts:
                 counts[c] += 1
             elif c in pairs:
