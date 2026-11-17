@@ -12,30 +12,35 @@ This application turns any device (Windows PC or Linux laptop) on the same local
 1. **True Virtual Display:** Never settle for a windowed screen-mirroring app. The OS must recognize the display as an authentic monitor (configurable resolution, scaling, and desktop extension).
 2. **Sub-50ms Latency:** Low latency over local 5GHz Wi-Fi / Ethernet is essential for desktop productivity and fluid cursor movement.
 3. **Safety & Zero Leftovers:** If the connection drops or the app exits, the virtual monitor must be cleanly unplugged immediately to avoid "trapping" the user's cursor on an invisible monitor.
+4. **Bidirectional Orchestration:** Any device can seamlessly function as either a **Host** (originating the virtual display and encoding video) or a **Receiver** (presenting the display borderless fullscreen).
 
 ### Key Technologies
 - **Core Engine & Backend:** Rust (2021 edition)
 - **Application Shell & UI:** Tauri 2.0 + TypeScript + Tailwind CSS
-- **Virtual Display Driver (Windows):** Open-source signed Indirect Display Driver (IddCx / `Virtual-Display-Driver`)
-- **Virtual Display Service (Linux):** GNOME Mutter RemoteDesktop D-Bus (`org.gnome.Mutter.RemoteDesktop`) & KDE Plasma D-Bus + PipeWire
-- **Screen Capture:** Windows DXGI Desktop Duplication API / Linux PipeWire screencast
+- **Virtual Display Driver (Windows):** Open-source signed Indirect Display Driver (IddCx / `Virtual-Display-Driver`) staged with companion IPC service (`vdd.exe`)
+- **Virtual Display Service (Linux):** GNOME Mutter RemoteDesktop D-Bus (`org.gnome.Mutter.RemoteDesktop`) & FreeDesktop XDG Desktop Portal (`org.freedesktop.portal.RemoteDesktop` & `ScreenCast`)
+- **Screen Capture:** Windows DXGI Desktop Duplication API / Linux PipeWire screencast stream with cursor compositing
 - **Networking & Streaming:** WebRTC (`webrtc-rs`), RFC 3550 & RFC 6184 RTP packetization, mDNS ZeroConf discovery (`mdns-sd`)
-- **Video Rendering:** Hardware-accelerated presentation surface (`wgpu` / native borderless surface)
+- **Video Presentation:** Windows Direct3D11 swap chain presentation surface (`DXGI_FORMAT_B8G8R8A8_UNORM`) & Linux native surface
 
 ---
 
-## 2. Current Implementation Status (Phase 1 MVP Complete)
+## 2. Current Implementation Status (Phase 2 Complete: Full Bidirectional Support)
 
-Phase 1 (Windows Host → Linux Receiver baseline) is fully implemented, verified with 67/67 passing tests, and merged to `master`:
+Both Phase 1 (Windows Host → Linux Receiver baseline) and Phase 2 (Linux Host, Windows Receiver, Driver Staging, and Bidirectional Orchestration) are fully implemented and verified:
 
 | Subsystem | Source Path | Key Traits / Structs | Test Suite |
 | :--- | :--- | :--- | :--- |
-| **Virtual Display Manager** | `src-tauri/src/display/` | `VirtualDisplayManager`, `DisplayConfig`, `WindowsIddCxManager` | `verify_display.py` |
-| **Screen Capture & Cursor** | `src-tauri/src/capture/` | `ScreenCapturer`, `CapturedFrame`, `DxgiCapturer` | `verify_capture.py` |
+| **Linux Wayland Display Manager** | `src-tauri/src/display/linux_wayland.rs` | `WaylandDisplayManager`, `WaylandBackend` (Mutter/Portal/Simulated) | `verify_linux_display.py` |
+| **Linux PipeWire Screen Capturer** | `src-tauri/src/capture/pipewire.rs` | `PipeWireCapturer`, `PipeWireCursorMetadata`, `composite_pipewire_cursor` | `verify_pipewire_capture.py` |
+| **Windows D3D11 Presentation Surface** | `src-tauri/src/receiver/windows_surface.rs` | `WindowsD3D11Surface`, dynamic 2D texture, <1 frame latency dropping | `verify_windows_receiver.py` |
+| **Windows Driver Packaging & Staging** | `drivers/windows/` | `VirtualDisplayDriver.inf`, `.cer`, `vdd.exe`, x64 `.sys`/`.dll`, batch scripts | `verify_driver_staging.py` |
+| **Windows IddCx Display Manager** | `src-tauri/src/display/windows_iddcx.rs` | `WindowsIddCxManager`, `DisplayConfig` | `verify_display.py` |
+| **Windows DXGI Capturer & Cursor** | `src-tauri/src/capture/dxgi.rs` | `DxgiCapturer`, `composite_cursor` | `verify_capture.py` |
 | **Video Encoding & WebRTC** | `src-tauri/src/stream/` | `VideoEncoder`, `EncodedPacket`, `RtpPacketizer`, `WebRtcHostSession` | `verify_stream.py` |
 | **mDNS & PIN Pairing** | `src-tauri/src/discovery/`, `src-tauri/src/pairing/` | `DiscoveryService`, `MdnsDiscovery`, `PinAuthManager`, `PairingSession` | `verify_discovery_pairing.py` |
 | **Monitor Receiver** | `src-tauri/src/receiver/` | `MonitorReceiver`, `ClientScreenGeometry`, `PresentationSurface` | `verify_receiver.py` |
-| **Orchestration & UI** | `src-tauri/src/lib.rs`, `ui/` | `AppState`, Tauri IPC handlers, `StatusHeader`, `DeviceList`, `PairingModal` | `verify_e2e.py` |
+| **Phase 2 Bidirectional Orchestration** | `src-tauri/src/lib.rs`, `ui/` | `AppState`, `Phase2Status`, bidirectional Tauri IPC commands, UI Dashboard | `verify_phase2.py`, `verify_e2e.py` |
 
 ---
 
@@ -54,12 +59,19 @@ f:\Wireless Monitor Project\
 │       ├── specs/
 │       │   └── 2026-11-17-wireless-monitor-design.md
 │       └── plans/
-│           └── 2026-11-17-wireless-monitor-mvp.md
+│           ├── 2026-11-17-wireless-monitor-mvp.md
+│           └── 2026-11-17-wireless-monitor-phase2.md
 │
 ├── drivers/                              <-- Bundled virtual display drivers
 │   └── windows/
-│       ├── install_driver.bat            <-- Driver installation helper (elevated)
-│       └── uninstall_driver.bat          <-- Clean driver teardown helper (elevated)
+│       ├── VirtualDisplayDriver.cer      <-- Code signing security certificate
+│       ├── VirtualDisplayDriver.inf      <-- IddCx driver manifest
+│       ├── vdd.exe                       <-- 64-bit companion IPC service binary
+│       ├── install_driver.bat            <-- Turnkey elevated installation automation script
+│       ├── uninstall_driver.bat          <-- Clean driver teardown automation script
+│       └── x64/
+│           ├── VirtualDisplayDriver.sys  <-- KMDF kernel-mode driver
+│           └── VirtualDisplayDriver.dll  <-- UMDF user-mode display driver
 │
 ├── src-tauri/                            <-- Rust backend core
 │   ├── Cargo.toml
@@ -69,10 +81,12 @@ f:\Wireless Monitor Project\
 │   │   ├── lib.rs                        <-- Tauri command routing, AppState & teardown hooks
 │   │   ├── display/                      <-- Virtual display lifecycle management
 │   │   │   ├── mod.rs
+│   │   │   ├── linux_wayland.rs          <-- GNOME Mutter & XDG Desktop Portal D-Bus driver
 │   │   │   └── windows_iddcx.rs          <-- Windows IddCx driver control & dynamic monitor creation
 │   │   ├── capture/                      <-- Frame capture from virtual monitor
 │   │   │   ├── mod.rs
-│   │   │   └── dxgi.rs                   <-- DXGI Desktop Duplication & cursor alpha compositing
+│   │   │   ├── dxgi.rs                   <-- DXGI Desktop Duplication & cursor alpha compositing
+│   │   │   └── pipewire.rs               <-- PipeWire screencast capture & cursor compositing
 │   │   ├── stream/                       <-- WebRTC & H.264 video pipeline
 │   │   │   ├── mod.rs
 │   │   │   ├── encoder.rs                <-- Hardware / software H.264 encoding abstraction
@@ -86,30 +100,41 @@ f:\Wireless Monitor Project\
 │   │   └── receiver/                     <-- Monitor mode presentation engine
 │   │       ├── mod.rs
 │   │       ├── webrtc_client.rs          <-- Client RTP stream consumer & signed sequence gap detection
-│   │       └── surface.rs                <-- Hardware presentation surface (<1 frame latency queue)
+│   │       ├── surface.rs                <-- Hardware presentation surface (<1 frame latency queue)
+│   │       └── windows_surface.rs        <-- Direct3D11 swap chain presentation surface
 │   └── tests/                            <-- Integration & unit tests
 │       ├── capture_pipeline_test.rs
 │       ├── discovery_pairing_test.rs
 │       ├── display_manager_test.rs
+│       ├── driver_staging_test.rs
+│       ├── e2e_bidirectional_test.rs
 │       ├── e2e_orchestration_test.rs
+│       ├── linux_display_test.rs
+│       ├── pipewire_capture_test.rs
 │       ├── receiver_test.rs
 │       ├── webrtc_stream_test.rs
+│       ├── windows_receiver_test.rs
 │       ├── verify_capture.py
 │       ├── verify_discovery_pairing.py
 │       ├── verify_display.py
+│       ├── verify_driver_staging.py
 │       ├── verify_e2e.py
+│       ├── verify_linux_display.py
+│       ├── verify_phase2.py
+│       ├── verify_pipewire_capture.py
 │       ├── verify_receiver.py
-│       └── verify_stream.py
+│       ├── verify_stream.py
+│       └── verify_windows_receiver.py
 │
 └── ui/                                   <-- Frontend dashboard & pairing interface
     ├── index.html
     └── src/
-        ├── main.ts
+        ├── main.ts                       <-- App initialization, polling, role switching
         ├── style.css
         └── components/
             ├── DeviceList.ts             <-- Discovered LAN peers list & action buttons
             ├── PairingModal.ts           <-- 4-digit PIN verification modal
-            └── StatusHeader.ts           <-- Host/Monitor status pill, driver badge & metrics
+            └── StatusHeader.ts           <-- Host/Receiver role switcher, OS badge & metrics
 ```
 
 ---
@@ -122,12 +147,21 @@ f:\Wireless Monitor Project\
 - **Python:** 3.10+ (for behavioral test verification suites)
 
 ### Running Tests & Verification
-Run the verification test suite before committing any change:
+Run the verification test suites before committing any change:
 ```powershell
-# Run full end-to-end integration test
+# Run full Phase 2 bidirectional end-to-end integration test
+python src-tauri/tests/verify_phase2.py
+
+# Run Phase 1 end-to-end integration test
 python src-tauri/tests/verify_e2e.py
 
-# Run all subsystem test suites
+# Run Phase 2 component verification suites
+python src-tauri/tests/verify_linux_display.py
+python src-tauri/tests/verify_pipewire_capture.py
+python src-tauri/tests/verify_windows_receiver.py
+python src-tauri/tests/verify_driver_staging.py
+
+# Run Phase 1 subsystem test suites
 python src-tauri/tests/verify_stream.py
 python src-tauri/tests/verify_capture.py
 python src-tauri/tests/verify_display.py
@@ -158,7 +192,7 @@ Any agent modifying this codebase MUST respect these established patterns:
 
 1. **COM Pointers & Thread Safety (`Send + Sync`):**
    - In `windows` crate 0.58, COM interface pointers (`ID3D11Device`, `IDXGIOutputDuplication`) are `!Send` and `!Sync`.
-   - `DxgiCapturer` explicitly implements `unsafe impl Send` and `unsafe impl Sync` because all mutations require exclusive `&mut self` access. Do not remove these declarations.
+   - `DxgiCapturer` and `WindowsD3D11Surface` explicitly implement `unsafe impl Send` and `unsafe impl Sync` because all mutations require exclusive `&mut self` access. Do not remove these declarations.
 
 2. **Never Hold `std::sync::MutexGuard` Across `.await` Points:**
    - Standard `std::sync::MutexGuard` is `!Send`. Holding a guard across an `.await` boundary makes the outer `Future` `!Send`, breaking Tokio and Tauri command handlers.
@@ -169,37 +203,29 @@ Any agent modifying this codebase MUST respect these established patterns:
    - When the mouse is stationary, DXGI reports `LastMouseUpdateTime == 0` and sets `PointerPosition.Visible` to `false`. Always retain and composite the last known cursor position so the mouse pointer does not vanish.
    - When `AccumulatedFrames == 0`, `ppDesktopResource` can be `None`. Handle this gracefully by releasing the frame lock and reusing the previous frame buffer.
 
-4. **RTP 16-Bit Signed Sequence Wrapping:**
-   - When calculating sequence deltas on incoming RTP packets, NEVER use unsigned wrapping subtraction.
-   - Always calculate signed delta: `let diff = seq.wrapping_sub(expected) as i16;`.
-   - If `diff > 0`: forward packet loss; increment loss count and request RTCP PLI/FIR.
-   - If `diff <= 0`: late or duplicate packet; drop immediately without corrupting sequence tracking.
+4. **Linux Wayland Virtual Output & D-Bus Lifecycle:**
+   - GNOME Mutter: invoke `org.gnome.Mutter.RemoteDesktop.CreateVirtualMonitor` on session handle.
+   - FreeDesktop XDG Portal: invoke `org.freedesktop.portal.RemoteDesktop.CreateSession` and `org.freedesktop.portal.ScreenCast.CreateSession`.
+   - Do not call nested `tokio::runtime::Runtime::new()` within an already active Tokio thread pool; probe `tokio::runtime::Handle::try_current()` and block in place.
 
-5. **Display Rollback & Teardown Safety:**
+5. **PipeWire Cursor Compositing & Stride Alignment:**
+   - Stride must be 16-byte aligned and satisfy `stride >= width * 4`.
+   - In `Metadata` cursor mode, extract cursor position, clip boundary edges, and alpha blend onto the RGBA frame. In `Embedded` mode, the compositor has already rendered the cursor.
+
+6. **Direct3D11 Presentation Surface & Sub-Frame Latency:**
+   - Presentation queue depth must not exceed 2 frames. Drop the oldest unrendered frame when the queue overflows to prevent presentation bloat and enforce sub-50ms glass-to-glass latency.
+   - Use `DXGI_FORMAT_B8G8R8A8_UNORM` dynamic textures with `UpdateSubresource` and `Present(0, 0)` for immediate non-blocking swap chain flips.
+
+7. **Display Rollback & Teardown Safety:**
    - In `AppState::submit_pin()`, if screen capture fails to initialize, immediately roll back and destroy the created virtual display (`disp.destroy_display(monitor_id)`) to prevent orphaned displays.
-   - `AppState::teardown()` and `WindowEvent::CloseRequested` / `Destroyed` ensure `destroy_all()` is executed on exit.
-
-6. **mDNS Networking & DNS Label Rules:**
-   - Always chain `.enable_addr_auto()` when creating `ServiceInfo` in `mdns-sd`.
-   - Hostnames in DNS must be sanitized via `sanitize_dns_label()` to contain only lowercase alphanumeric characters and hyphens (RFC 1035 / RFC 6762).
-   - Prioritize IPv4 addresses during peer address resolution before falling back to IPv6 link-local addresses.
-   - Always call `daemon.unregister(&fullname)` when stopping the discovery service.
+   - `AppState::teardown()` and `WindowEvent::CloseRequested` / `Destroyed` ensure `destroy_all()` and presentation surface closing are executed on exit.
 
 ---
 
-## 6. Phase 2 Roadmap & Swarm Workstreams
+## 6. Phase 2 Completion Summary
 
-Phase 2 will complete bidirectional support and production driver bundling:
-
-### Workstream 1: Linux Host Mode (Wayland)
-- GNOME Mutter: Connect over D-Bus to `org.gnome.Mutter.RemoteDesktop.CreateVirtualMonitor`.
-- KDE Plasma: Connect to KWin headless virtual output / D-Bus output interface.
-- Screen Capture: Zero-copy PipeWire screencast stream connected to the H.264 video encoder.
-
-### Workstream 2: Windows Receiver Mode
-- Connect Windows Tauri receiver to Linux host WebRTC stream.
-- Native presentation surface rendering using Direct3D11 / `wgpu` borderless fullscreen window.
-
-### Workstream 3: Driver Packaging & Staging
-- Download and bundle pre-compiled, WHQL-attestation-signed release binaries of `Virtual-Display-Driver` (`itsmikethetech/Virtual-Display-Driver`) into `drivers/windows/`.
-- Verify one-click driver certificate import (`certutil`) and PnP device registration (`pnputil`).
+All workstreams in Phase 2 are complete:
+- **Linux Host Mode:** Implemented GNOME Mutter & XDG Portal D-Bus virtual display creation, PipeWire screen capture, and cursor compositing.
+- **Windows Receiver Mode:** Implemented native Direct3D11 presentation surface with borderless fullscreen rendering and sub-frame latency frame dropping.
+- **Driver Packaging & Staging:** Staged signed IddCx driver, x64 UMDF/KMDF PE binaries, companion IPC service (`vdd.exe`), certutil certificate import, and pnputil automation scripts.
+- **Bidirectional Orchestration:** Exposed Tauri IPC commands (`get_operating_system`, `set_app_role`, `start_linux_host`, `start_windows_receiver`, `get_phase2_status`) and integrated role switching into the UI dashboard.

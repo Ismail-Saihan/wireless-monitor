@@ -17,17 +17,36 @@ export interface SessionStatus {
   pin?: string | null;
 }
 
+export interface Phase2Status {
+  os: string;
+  role: string;
+  linux_host_ready: boolean;
+  windows_receiver_ready: boolean;
+  active_backend: string;
+  is_streaming: boolean;
+  monitor_id: number | null;
+  surface_active: boolean;
+  frames_captured: number;
+  frames_presented: number;
+}
+
 export class StatusHeader {
   private container: HTMLElement;
   private onInstallDriverCallback?: () => void;
+  private onRoleChangeCallback?: (newRole: "host" | "receiver") => void;
 
-  constructor(containerId: string, onInstallDriver?: () => void) {
+  constructor(
+    containerId: string,
+    onInstallDriver?: () => void,
+    onRoleChange?: (newRole: "host" | "receiver") => void
+  ) {
     const el = document.getElementById(containerId);
     if (!el) {
       throw new Error(`Container #${containerId} not found`);
     }
     this.container = el;
     this.onInstallDriverCallback = onInstallDriver;
+    this.onRoleChangeCallback = onRoleChange;
     this.renderInitial();
   }
 
@@ -44,23 +63,99 @@ export class StatusHeader {
               <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               LAN Ready
             </span>
+            <span id="header-os-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
+              Detecting OS
+            </span>
           </div>
           <p id="header-device-info" class="text-xs text-slate-400 mt-0.5">Detecting host system...</p>
         </div>
       </div>
-      <div class="flex items-center space-x-3">
+      <div class="flex items-center space-x-4">
+        <!-- Role Switcher Segmented Control -->
+        <div id="header-role-switcher" class="flex items-center bg-slate-800/90 border border-slate-700/80 p-0.5 rounded-xl text-xs font-medium">
+          <button id="btn-role-host" class="px-3 py-1 rounded-lg transition bg-indigo-600 text-white shadow-sm">
+            Host
+          </button>
+          <button id="btn-role-receiver" class="px-3 py-1 rounded-lg transition text-slate-400 hover:text-white">
+            Receiver
+          </button>
+        </div>
+
+        <div id="header-backend-pill" class="hidden"></div>
         <div id="header-session-pill" class="hidden"></div>
         <div id="header-driver-status" class="flex items-center space-x-2">
           <span class="text-xs text-slate-400">Driver: Checking...</span>
         </div>
       </div>
     `;
+
+    // Attach role switcher listeners
+    const hostBtn = document.getElementById("btn-role-host");
+    const receiverBtn = document.getElementById("btn-role-receiver");
+
+    if (hostBtn) {
+      hostBtn.onclick = () => {
+        this.setRole("host");
+        this.onRoleChangeCallback?.("host");
+      };
+    }
+    if (receiverBtn) {
+      receiverBtn.onclick = () => {
+        this.setRole("receiver");
+        this.onRoleChangeCallback?.("receiver");
+      };
+    }
+  }
+
+  public setRole(role: "host" | "receiver"): void {
+    const hostBtn = document.getElementById("btn-role-host");
+    const receiverBtn = document.getElementById("btn-role-receiver");
+
+    if (role === "host") {
+      if (hostBtn) {
+        hostBtn.className = "px-3 py-1 rounded-lg transition bg-indigo-600 text-white shadow-sm";
+      }
+      if (receiverBtn) {
+        receiverBtn.className = "px-3 py-1 rounded-lg transition text-slate-400 hover:text-white";
+      }
+    } else {
+      if (hostBtn) {
+        hostBtn.className = "px-3 py-1 rounded-lg transition text-slate-400 hover:text-white";
+      }
+      if (receiverBtn) {
+        receiverBtn.className = "px-3 py-1 rounded-lg transition bg-indigo-600 text-white shadow-sm";
+      }
+    }
+  }
+
+  public updatePhase2(phase2: Phase2Status): void {
+    // 1. Update OS Badge
+    const osBadge = document.getElementById("header-os-badge");
+    if (osBadge) {
+      const osLabel = phase2.os === "windows" ? "Windows" : phase2.os === "linux" ? "Linux Wayland" : phase2.os;
+      osBadge.textContent = osLabel;
+    }
+
+    // 2. Update Role control
+    const currentRole = phase2.role.toLowerCase() === "receiver" ? "receiver" : "host";
+    this.setRole(currentRole);
+
+    // 3. Update Backend Pill
+    const backendPill = document.getElementById("header-backend-pill");
+    if (backendPill) {
+      backendPill.classList.remove("hidden");
+      backendPill.innerHTML = `
+        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
+          Backend: ${phase2.active_backend}
+        </span>
+      `;
+    }
   }
 
   public updateSystem(status: SystemStatus): void {
     const infoEl = document.getElementById("header-device-info");
     if (infoEl) {
-      infoEl.textContent = `${status.hostname} • ${status.os.toUpperCase()} Host Engine`;
+      infoEl.textContent = `${status.hostname} • ${status.os.toUpperCase()} Engine`;
     }
 
     const driverEl = document.getElementById("header-driver-status");
@@ -69,7 +164,7 @@ export class StatusHeader {
         driverEl.innerHTML = `
           <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700/80">
             <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400"></span>
-            IddCx Driver Ready
+            Virtual Driver Ready
           </span>
         `;
       } else {

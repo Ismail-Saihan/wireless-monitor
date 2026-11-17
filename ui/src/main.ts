@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { StatusHeader, SystemStatus, SessionStatus } from "./components/StatusHeader";
+import { StatusHeader, SystemStatus, SessionStatus, Phase2Status } from "./components/StatusHeader";
 import { DeviceList, PeerDevice } from "./components/DeviceList";
 import { PairingModal } from "./components/PairingModal";
 
@@ -13,6 +13,18 @@ export interface DeviceInfo {
   active_session: SessionStatus | null;
 }
 
+export interface DisplayConfig {
+  width: number;
+  height: number;
+  refresh_rate: number;
+}
+
+export interface ClientScreenGeometry {
+  width: number;
+  height: number;
+  refresh_rate: number;
+}
+
 export class App {
   private statusHeader!: StatusHeader;
   private deviceList!: DeviceList;
@@ -20,19 +32,35 @@ export class App {
   public currentPeers: PeerDevice[] = [];
   public activeSession: SessionStatus | null = null;
   public deviceInfo: DeviceInfo | null = null;
+  public phase2Status: Phase2Status | null = null;
+  public os: string = "";
   private pollInterval: number | null = null;
 
   public async init(): Promise<void> {
-    console.log("Initializing Wireless Monitor UI...");
+    console.log("Initializing Wireless Monitor Phase 2 UI...");
 
-    // Initialize UI Components
-    this.statusHeader = new StatusHeader("status-header", () => this.handleInstallDriver());
+    // Query operating system
+    try {
+      this.os = await invoke<string>("get_operating_system");
+      console.log("Operating System detected:", this.os);
+    } catch (err) {
+      console.warn("Could not query OS, falling back to client platform:", err);
+    }
+
+    // Initialize UI Components with bidirectional role switching callback
+    this.statusHeader = new StatusHeader(
+      "status-header",
+      () => this.handleInstallDriver(),
+      (newRole) => this.handleRoleChange(newRole)
+    );
+
     this.deviceList = new DeviceList(
       "device-list-container",
       (peer) => this.handleExtendDisplay(peer),
       (peer) => this.handleUseAsMonitor(peer),
       () => this.refreshPeers()
     );
+
     this.pairingModal = new PairingModal(
       "pairing-modal-container",
       (peerId, pin) => this.handlePinSubmit(peerId, pin),
@@ -52,16 +80,18 @@ export class App {
       checkDriverBtn.onclick = () => this.handleInstallDriver();
     }
 
-    // Initial system status & device metadata query
+    // Initial system status, device metadata, discovery & Phase 2 status query
     await this.refreshSystemStatus();
     await this.refreshDeviceInfo();
+    await this.refreshPhase2Status();
     await this.startDiscovery();
     await this.refreshPeers();
 
-    // Setup periodic polling for peer updates and active session state
+    // Setup periodic polling for peer updates, session state, and Phase 2 metrics
     this.pollInterval = window.setInterval(async () => {
       await this.refreshPeers(false);
       await this.refreshSessionStatus();
+      await this.refreshPhase2Status();
     }, 2000);
   }
 
@@ -69,6 +99,70 @@ export class App {
     if (this.pollInterval !== null) {
       clearInterval(this.pollInterval);
       this.pollInterval = null;
+    }
+  }
+
+  public async refreshPhase2Status(): Promise<void> {
+    try {
+      const p2 = await invoke<Phase2Status>("get_phase2_status");
+      this.phase2Status = p2;
+      this.statusHeader.updatePhase2(p2);
+    } catch (err) {
+      console.error("Failed to query Phase 2 status:", err);
+    }
+  }
+
+  public async handleRoleChange(newRole: "host" | "receiver"): Promise<void> {
+    console.log(`Switching application role to: ${newRole}`);
+    try {
+      const updatedRole = await invoke<string>("set_app_role", { role: newRole });
+      console.log(`Role successfully changed to: ${updatedRole}`);
+      await this.refreshPhase2Status();
+    } catch (err) {
+      console.error("Failed to set application role:", err);
+      alert(`Role switch error: ${err}`);
+    }
+  }
+
+  public async startLinuxHost(width: number = 1920, height: number = 1080, refreshRate: number = 60): Promise<number | null> {
+    console.log(`Starting Linux Wayland Host (${width}x${height}@${refreshRate}Hz)...`);
+    try {
+      const monitorId = await invoke<number>("start_linux_host", {
+        config: {
+          width,
+          height,
+          refresh_rate: refreshRate,
+        },
+      });
+      console.log(`Linux host started with monitor ID: ${monitorId}`);
+      await this.refreshSessionStatus();
+      await this.refreshPhase2Status();
+      return monitorId;
+    } catch (err) {
+      console.error("Failed to start Linux host:", err);
+      alert(`Start Linux Host failed: ${err}`);
+      return null;
+    }
+  }
+
+  public async startWindowsReceiver(width: number = 1920, height: number = 1080, refreshRate: number = 60): Promise<boolean> {
+    console.log(`Starting Windows Direct3D11 Receiver (${width}x${height}@${refreshRate}Hz)...`);
+    try {
+      const success = await invoke<boolean>("start_windows_receiver", {
+        geometry: {
+          width,
+          height,
+          refresh_rate: refreshRate,
+        },
+      });
+      console.log("Windows receiver started:", success);
+      await this.refreshSessionStatus();
+      await this.refreshPhase2Status();
+      return success;
+    } catch (err) {
+      console.error("Failed to start Windows receiver:", err);
+      alert(`Start Windows Receiver failed: ${err}`);
+      return false;
     }
   }
 
@@ -88,8 +182,12 @@ export class App {
 
       const driverStatusEl = document.getElementById("driver-status");
       if (driverStatusEl) {
+        const isLinux = this.os === "linux" || status.os === "linux";
+        const driverLabel = isLinux
+          ? "Wayland RemoteDesktop Service Active"
+          : "Indirect Display Driver (IddCx) Active";
         driverStatusEl.textContent = status.driver_installed
-          ? "Indirect Display Driver (IddCx) Active"
+          ? driverLabel
           : "Driver not detected - click Install to setup";
         driverStatusEl.className = status.driver_installed
           ? "text-xs text-emerald-400 font-medium"
@@ -193,6 +291,7 @@ export class App {
         console.log("PIN verified successfully! Virtual display created.");
         await this.refreshSessionStatus();
         await this.refreshSystemStatus();
+        await this.refreshPhase2Status();
         return true;
       } else {
         this.pairingModal.setError("Incorrect PIN. Please check device display.");
@@ -211,6 +310,7 @@ export class App {
       console.log("Streaming session stopped, virtual displays destroyed.");
       await this.refreshSessionStatus();
       await this.refreshSystemStatus();
+      await this.refreshPhase2Status();
     } catch (err) {
       console.error("Failed to stop session:", err);
     }
