@@ -139,6 +139,27 @@ def verify_interface_and_types():
     assert "pub fn build_portal_screencast_call" in wl_rs, "build_portal_screencast_call missing"
     assert "pub fn build_portal_close_call" in wl_rs, "build_portal_close_call missing"
 
+    # Verify Review Fix IMP-01: Nested Tokio Runtime Panic Prevention
+    assert "execute_blocking" in wl_rs, "execute_blocking helper missing"
+    assert "Handle::try_current" in wl_rs, "Handle::try_current check missing for nested runtime protection"
+    assert "block_in_place" in wl_rs, "block_in_place call missing for yielding active runtime threads"
+
+    # Verify Review Fix IMP-02: Portal monitor configuration forwarding
+    assert "config.width" in wl_rs and "config.height" in wl_rs and "config.refresh_rate" in wl_rs, (
+        "create_xdg_portal_monitor must forward config dimensions and refresh rate"
+    )
+
+    # Verify Review Fix MIN-01: WAYLAND_DISPLAY whitespace/empty checking
+    assert "trim().is_empty()" in wl_rs, "is_driver_installed must check for empty/whitespace WAYLAND_DISPLAY"
+
+    # Verify Review Fix MIN-02: Error propagation in destroy_native_session
+    assert "context(\"Failed to stop Mutter session via D-Bus\")" in wl_rs, (
+        "destroy_native_session must propagate Mutter error context"
+    )
+    assert "context(\"Failed to close XDG Portal session via D-Bus\")" in wl_rs, (
+        "destroy_native_session must propagate Portal error context"
+    )
+
     print("  -> Linux Wayland interface, types, and D-Bus contracts verified successfully.")
 
 

@@ -317,7 +317,8 @@ impl VirtualDisplayManager for WaylandDisplayManager {
 
         #[cfg(target_os = "linux")]
         {
-            if std::env::var("WAYLAND_DISPLAY").is_err() {
+            let wayland_display = std::env::var("WAYLAND_DISPLAY").unwrap_or_default();
+            if wayland_display.trim().is_empty() {
                 return Ok(false);
             }
             // Under Linux Wayland, virtual display capability is natively exposed
@@ -536,18 +537,31 @@ impl VirtualDisplayManager for WaylandDisplayManager {
 
 #[cfg(target_os = "linux")]
 impl WaylandDisplayManager {
+    /// Execute asynchronous D-Bus operation safely, avoiding nested Tokio runtime panics.
+    /// If invoked within an active Tokio runtime thread pool (e.g. Tauri command),
+    /// uses `block_in_place` to yield the worker thread.
+    fn execute_blocking<F, R>(future: F) -> Result<R>
+    where
+        F: std::future::Future<Output = Result<R>>,
+    {
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            tokio::task::block_in_place(|| handle.block_on(future))
+        } else {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .context("Failed to build current-thread Tokio runtime for D-Bus execution")?;
+            rt.block_on(future)
+        }
+    }
+
     /// Create virtual display via GNOME Mutter RemoteDesktop D-Bus
     fn create_gnome_mutter_monitor(
         &mut self,
         _id: u32,
         config: &DisplayConfig,
     ) -> Result<String> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("Failed to build tokio runtime for Mutter D-Bus")?;
-
-        rt.block_on(async {
+        Self::execute_blocking(async {
             let connection = zbus::Connection::session().await
                 .context("Failed to connect to D-Bus session bus")?;
 
@@ -615,12 +629,7 @@ impl WaylandDisplayManager {
         id: u32,
         config: &DisplayConfig,
     ) -> Result<String> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("Failed to build tokio runtime for Portal D-Bus")?;
-
-        rt.block_on(async {
+        Self::execute_blocking(async {
             let connection = zbus::Connection::session().await
                 .context("Failed to connect to D-Bus session bus")?;
 
@@ -652,6 +661,23 @@ impl WaylandDisplayManager {
                 "types",
                 zbus::zvariant::Value::from(1u32), // Monitor source
             );
+            screencast_opts.insert(
+                "width",
+                zbus::zvariant::Value::from(config.width as i32),
+            );
+            screencast_opts.insert(
+                "height",
+                zbus::zvariant::Value::from(config.height as i32),
+            );
+            screencast_opts.insert(
+                "refresh_rate",
+                zbus::zvariant::Value::from(config.refresh_rate as f64),
+            );
+            let res_str = format!("{}x{}@{}", config.width, config.height, config.refresh_rate);
+            screencast_opts.insert(
+                "resolution",
+                zbus::zvariant::Value::from(res_str.as_str()),
+            );
 
             let _cast_res: zbus::zvariant::OwnedObjectPath = connection
                 .call_method(
@@ -673,18 +699,13 @@ impl WaylandDisplayManager {
 
     /// Cleanly close native D-Bus session
     fn destroy_native_session(&self, handle: &str) -> Result<()> {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .context("Failed to build tokio runtime for session cleanup")?;
-
-        rt.block_on(async {
+        Self::execute_blocking(async {
             let connection = zbus::Connection::session().await
                 .context("Failed to connect to D-Bus session bus")?;
 
             match self.backend {
                 WaylandBackend::GnomeMutter => {
-                    let _ = connection
+                    connection
                         .call_method(
                             Some(MUTTER_SERVICE),
                             handle,
@@ -692,10 +713,11 @@ impl WaylandDisplayManager {
                             "Stop",
                             &(),
                         )
-                        .await;
+                        .await
+                        .context("Failed to stop Mutter session via D-Bus")?;
                 }
                 WaylandBackend::XdgPortal => {
-                    let _ = connection
+                    connection
                         .call_method(
                             Some(PORTAL_SERVICE),
                             handle,
@@ -703,7 +725,8 @@ impl WaylandDisplayManager {
                             "Close",
                             &(),
                         )
-                        .await;
+                        .await
+                        .context("Failed to close XDG Portal session via D-Bus")?;
                 }
                 WaylandBackend::Simulated => {}
             }
