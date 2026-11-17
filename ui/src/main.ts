@@ -292,6 +292,7 @@ export class App {
     } catch (err) {
       console.error("Failed to respond to request:", err);
       alert(`Failed to respond to request: ${err}`);
+      throw err;
     }
   }
 
