@@ -4,6 +4,10 @@ export interface PeerDevice {
   ip: string;
   port: number;
   mode: "host" | "monitor" | string;
+  capabilities?: string[];
+  max_resolution?: string;
+  max_fps?: number;
+  last_seen?: number;
 }
 
 export class DeviceList {
@@ -100,7 +104,7 @@ export class DeviceList {
     this.currentPeers.forEach((peer) => {
       const card = document.createElement("div");
       card.className =
-        "flex items-center justify-between p-3.5 bg-slate-900/60 hover:bg-slate-900/90 rounded-xl border border-slate-700/50 transition shadow-sm";
+        "p-3.5 bg-slate-900/60 hover:bg-slate-900/90 rounded-xl border border-slate-700/50 transition shadow-sm space-y-2.5";
 
       const isMonitor = peer.mode === "monitor";
       const badgeClass = isMonitor
@@ -108,31 +112,61 @@ export class DeviceList {
         : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
       const modeLabel = isMonitor ? "Monitor" : "Host";
 
+      // Collect capability tags
+      const badges: string[] = [];
+      if (peer.capabilities && peer.capabilities.length > 0) {
+        for (const cap of peer.capabilities) {
+          if (!badges.includes(cap)) {
+            badges.push(cap);
+          }
+        }
+      }
+      if (peer.max_resolution && !badges.some((b) => b.toLowerCase().includes(peer.max_resolution!.toLowerCase()))) {
+        badges.push(peer.max_resolution);
+      }
+      if (peer.max_fps && !badges.some((b) => b.includes(`${peer.max_fps} FPS`))) {
+        badges.push(`${peer.max_fps} FPS`);
+      }
+
+      const badgesHtml = badges.length > 0
+        ? `<div class="flex flex-wrap gap-1.5 pt-0.5">
+            ${badges
+              .map(
+                (badge) =>
+                  `<span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/80 text-indigo-300 border border-indigo-500/20 font-mono">${badge}</span>`
+              )
+              .join("")}
+          </div>`
+        : "";
+
       card.innerHTML = `
-        <div class="flex items-center space-x-3">
-          <div class="w-8 h-8 rounded-lg ${isMonitor ? "bg-indigo-600/20 text-indigo-400" : "bg-emerald-600/20 text-emerald-400"} flex items-center justify-center text-sm font-semibold border border-slate-700/60">
-            ${isMonitor ? "🖥️" : "💻"}
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 rounded-lg ${isMonitor ? "bg-indigo-600/20 text-indigo-400" : "bg-emerald-600/20 text-emerald-400"} flex items-center justify-center text-sm font-semibold border border-slate-700/60">
+              ${isMonitor ? "🖥️" : "💻"}
+            </div>
+            <div>
+              <div class="flex items-center space-x-2">
+                <span class="text-xs font-semibold text-white tracking-wide">${peer.name}</span>
+                <span class="text-[10px] px-1.5 py-0.2 rounded-full border ${badgeClass}">
+                  ${modeLabel}
+                </span>
+              </div>
+              <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+                ${peer.ip}:${peer.port}
+              </div>
+            </div>
           </div>
-          <div>
-            <div class="flex items-center space-x-2">
-              <span class="text-xs font-semibold text-white tracking-wide">${peer.name}</span>
-              <span class="text-[10px] px-1.5 py-0.2 rounded-full border ${badgeClass}">
-                ${modeLabel}
-              </span>
-            </div>
-            <div class="text-[11px] text-slate-400 font-mono mt-0.5">
-              ${peer.ip}:${peer.port}
-            </div>
+          <div class="flex items-center space-x-2">
+            <button data-action="extend" class="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-sm">
+              Extend Display
+            </button>
+            <button data-action="monitor" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 font-medium transition">
+              Use as Monitor
+            </button>
           </div>
         </div>
-        <div class="flex items-center space-x-2">
-          <button data-action="extend" class="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-sm">
-            Extend Display
-          </button>
-          <button data-action="monitor" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 font-medium transition">
-            Use as Monitor
-          </button>
-        </div>
+        ${badgesHtml}
       `;
 
       const extendBtn = card.querySelector('[data-action="extend"]');

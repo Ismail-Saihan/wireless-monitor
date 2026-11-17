@@ -23,19 +23,24 @@ export class PairingModal {
     this.render();
   }
 
-  public open(peer: PeerDevice): void {
+  public open(peer: PeerDevice, pinHint?: string | null): void {
     this.currentPeer = peer;
     this.attemptsRemaining = 3;
     this.isSubmitting = false;
-    this.renderModal();
+    this.renderModal(pinHint);
     this.container.classList.remove("hidden");
 
     // Focus input
     setTimeout(() => {
       const input = document.getElementById("pin-input-field") as HTMLInputElement;
       if (input) {
-        input.value = "";
+        if (pinHint) {
+          input.value = pinHint;
+        } else {
+          input.value = "";
+        }
         input.focus();
+        input.select();
       }
     }, 50);
   }
@@ -71,8 +76,17 @@ export class PairingModal {
       "fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden";
   }
 
-  private renderModal(): void {
+  private renderModal(pinHint?: string | null): void {
     if (!this.currentPeer) return;
+
+    const pinHintHtml = pinHint
+      ? `
+        <div class="mb-3 p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-center">
+          <span class="text-[11px] text-indigo-300">Generated Session PIN: </span>
+          <span class="font-mono font-bold text-sm text-indigo-400 tracking-wider">${pinHint}</span>
+        </div>
+      `
+      : "";
 
     this.container.innerHTML = `
       <div class="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
@@ -92,6 +106,8 @@ export class PairingModal {
         </div>
 
         <div id="modal-error-banner" class="hidden mb-3 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs text-center font-medium"></div>
+
+        ${pinHintHtml}
 
         <div class="mb-4">
           <label class="block text-xs font-medium text-slate-300 mb-1.5 text-center">

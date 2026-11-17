@@ -2,6 +2,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { StatusHeader, SystemStatus, SessionStatus, Phase2Status } from "./components/StatusHeader";
 import { DeviceList, PeerDevice } from "./components/DeviceList";
 import { PairingModal } from "./components/PairingModal";
+import { SettingsDrawer, StreamSettings } from "./components/SettingsDrawer";
+import { ApprovalModal, IncomingRequest } from "./components/ApprovalModal";
 
 export interface DeviceInfo {
   device_id: string;
@@ -29,6 +31,8 @@ export class App {
   private statusHeader!: StatusHeader;
   private deviceList!: DeviceList;
   private pairingModal!: PairingModal;
+  private settingsDrawer!: SettingsDrawer;
+  private approvalModal!: ApprovalModal;
   public currentPeers: PeerDevice[] = [];
   public activeSession: SessionStatus | null = null;
   public deviceInfo: DeviceInfo | null = null;
@@ -37,7 +41,7 @@ export class App {
   private pollInterval: number | null = null;
 
   public async init(): Promise<void> {
-    console.log("Initializing Wireless Monitor Phase 2 UI...");
+    console.log("Initializing Wireless Monitor Phase 3 UI...");
 
     // Query operating system
     try {
@@ -47,11 +51,33 @@ export class App {
       console.warn("Could not query OS, falling back to client platform:", err);
     }
 
-    // Initialize UI Components with bidirectional role switching callback
+    // Initialize UI Components
+    this.settingsDrawer = new SettingsDrawer(
+      "settings-drawer-container",
+      async (settings: StreamSettings) => {
+        try {
+          await invoke("set_stream_settings", { settings });
+          console.log("Settings successfully applied to backend:", settings);
+        } catch (err) {
+          console.error("Failed to save stream settings to backend:", err);
+          throw err;
+        }
+      }
+    );
+    await this.settingsDrawer.loadSettings();
+
+    this.approvalModal = new ApprovalModal(
+      "approval-modal-container",
+      async (peerId: string, approved: boolean) => {
+        await this.handleRespondToRequest(peerId, approved);
+      }
+    );
+
     this.statusHeader = new StatusHeader(
       "status-header",
       () => this.handleInstallDriver(),
-      (newRole) => this.handleRoleChange(newRole)
+      (newRole) => this.handleRoleChange(newRole),
+      () => this.settingsDrawer.open()
     );
 
     this.deviceList = new DeviceList(
@@ -87,11 +113,12 @@ export class App {
     await this.startDiscovery();
     await this.refreshPeers();
 
-    // Setup periodic polling for peer updates, session state, and Phase 2 metrics
+    // Setup periodic polling for peer updates, session state, Phase 2 metrics, and incoming requests
     this.pollInterval = window.setInterval(async () => {
       await this.refreshPeers(false);
       await this.refreshSessionStatus();
       await this.refreshPhase2Status();
+      await this.pollIncomingRequests();
     }, 2000);
   }
 
@@ -235,6 +262,39 @@ export class App {
     }
   }
 
+  private async pollIncomingRequests(): Promise<void> {
+    try {
+      const requests = await invoke<IncomingRequest[]>("get_incoming_requests");
+      if (requests && requests.length > 0) {
+        const latestRequest = requests[0];
+        if (!this.approvalModal.isOpen() || this.approvalModal.getCurrentPeerId() !== latestRequest.peer_id) {
+          this.approvalModal.open(latestRequest);
+        }
+      } else if (this.approvalModal.isOpen()) {
+        this.approvalModal.close();
+      }
+    } catch (err) {
+      console.error("Failed to query incoming requests:", err);
+    }
+  }
+
+  private async handleRespondToRequest(peerId: string, approved: boolean): Promise<void> {
+    console.log(`Responding to incoming request from ${peerId}: approved=${approved}`);
+    try {
+      const result = await invoke<boolean>("respond_to_request", {
+        peerId,
+        approved,
+      });
+      console.log(`Response result: ${result}`);
+      this.approvalModal.close();
+      await this.refreshSessionStatus();
+      await this.refreshPhase2Status();
+    } catch (err) {
+      console.error("Failed to respond to request:", err);
+      alert(`Failed to respond to request: ${err}`);
+    }
+  }
+
   private updateActiveSessionCard(session: SessionStatus | null): void {
     const card = document.getElementById("active-session-card");
     if (!card) return;
@@ -267,7 +327,7 @@ export class App {
       });
       console.log("Session initiated:", session);
       this.activeSession = session;
-      this.pairingModal.open(peer);
+      this.pairingModal.open(peer, session.pin);
     } catch (err) {
       console.error("Failed to initiate extend display:", err);
       alert(`Failed to start session with ${peer.name}: ${err}`);
@@ -275,8 +335,28 @@ export class App {
   }
 
   private async handleUseAsMonitor(peer: PeerDevice): Promise<void> {
-    console.log(`Use as monitor with ${peer.name}`);
-    alert(`Connecting as monitor to ${peer.name} (${peer.ip}:${peer.port})`);
+    console.log(`Initiating reverse monitor connection with ${peer.name} (${peer.id})...`);
+    const screenWidth = window.screen.width || 1920;
+    const screenHeight = window.screen.height || 1080;
+    const refreshRate = 60;
+    const geometry: ClientScreenGeometry = {
+      width: screenWidth,
+      height: screenHeight,
+      refresh_rate: refreshRate,
+    };
+
+    try {
+      const session = await invoke<SessionStatus>("initiate_use_as_monitor", {
+        peerId: peer.id,
+        geometry,
+      });
+      console.log("Reverse monitor session initiated:", session);
+      this.activeSession = session;
+      this.pairingModal.open(peer, session.pin);
+    } catch (err) {
+      console.error("Failed to initiate reverse monitor session:", err);
+      alert(`Failed to connect as monitor to ${peer.name}: ${err}`);
+    }
   }
 
   private async handlePinSubmit(peerId: string, pin: string): Promise<boolean> {
