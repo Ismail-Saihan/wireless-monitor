@@ -283,6 +283,14 @@ impl WebRtcHostSession {
         })
     }
 
+    /// Dynamically update video encoder bitrate during active session streaming
+    pub fn update_bitrate(&self, bitrate_kbps: u32) -> Result<()> {
+        if let Ok(mut enc) = self.encoder.lock() {
+            enc.update_bitrate(bitrate_kbps)?;
+        }
+        Ok(())
+    }
+
     /// Check whether the session has been closed
     pub fn is_closed(&self) -> bool {
         self.is_closed.load(Ordering::SeqCst)

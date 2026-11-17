@@ -337,8 +337,10 @@ export class App {
 
   private async handleUseAsMonitor(peer: PeerDevice): Promise<void> {
     console.log(`Initiating reverse monitor connection with ${peer.name} (${peer.id})...`);
-    const screenWidth = window.screen.width || 1920;
-    const screenHeight = window.screen.height || 1080;
+    const rawWidth = window.screen.width || 1920;
+    const rawHeight = window.screen.height || 1080;
+    const screenWidth = Math.max(640, Math.floor(rawWidth / 2) * 2);
+    const screenHeight = Math.max(480, Math.floor(rawHeight / 2) * 2);
     const refreshRate = 60;
     const geometry: ClientScreenGeometry = {
       width: screenWidth,

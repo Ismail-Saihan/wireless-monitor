@@ -108,6 +108,7 @@ def verify_phase3_interfaces():
 
     required_commands = [
         "initiate_use_as_monitor",
+        "request_connection",
         "get_incoming_requests",
         "respond_to_request",
         "get_stream_settings",

@@ -532,7 +532,22 @@ impl AppState {
             .map_err(|e| format!("Invalid stream settings: {}", e))?;
         let mut guard = self.stream_settings.lock().map_err(|e| e.to_string())?;
         *guard = settings.clone();
+
+        // Dynamically propagate updated bitrate to active host streaming session if running
+        if let Ok(host_guard) = self.host_session.lock() {
+            if let Some(host) = host_guard.as_ref() {
+                let _ = host.update_bitrate(settings.bitrate_kbps);
+            }
+        }
+
         Ok(settings)
+    }
+
+    /// Request connection from remote peer to trigger approval dialog
+    pub fn request_connection(&self, peer_id: &str, peer_name: &str) -> Result<String, String> {
+        let mut auth = self.pin_auth_manager.lock().map_err(|e| e.to_string())?;
+        let (pin, _) = auth.request_connection(peer_id, peer_name);
+        Ok(pin)
     }
 
     /// Submit 4-digit PIN for session authentication
@@ -821,6 +836,15 @@ pub fn get_phase2_status(state: tauri::State<'_, AppState>) -> Phase2Status {
 }
 
 #[tauri::command]
+pub fn request_connection(
+    state: tauri::State<'_, AppState>,
+    peer_id: String,
+    peer_name: String,
+) -> Result<String, String> {
+    state.request_connection(&peer_id, &peer_name)
+}
+
+#[tauri::command]
 pub fn get_incoming_requests(state: tauri::State<'_, AppState>) -> Vec<IncomingRequest> {
     state.get_incoming_requests()
 }
@@ -879,6 +903,7 @@ pub fn run() {
             start_linux_host,
             start_windows_receiver,
             get_phase2_status,
+            request_connection,
             get_incoming_requests,
             respond_to_request,
             get_stream_settings,
