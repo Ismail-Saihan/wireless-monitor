@@ -571,8 +571,9 @@ def run_unit_tests():
 
     # Test 13: Hotspot offset
     fdata_hotspot = bytearray(30 * 30 * 4)
+    hotspot_bytes = bytearray([200, 200, 200, 255] * 16)
     hotspot_shape = SimulatedPointerShape(
-        SimulatedPointerShapeType.ColorRgba, 4, 4, 16, 2, 2, bytearray([200] * 64)
+        SimulatedPointerShapeType.ColorRgba, 4, 4, 16, 2, 2, hotspot_bytes
     )
     simulated_composite_cursor(fdata_hotspot, 30, 30, 120, SimulatedPointerPosition(10, 10, True), hotspot_shape)
     idx_8_8 = 8 * 120 + 8 * 4

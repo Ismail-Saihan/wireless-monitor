@@ -500,7 +500,15 @@ fn test_cursor_compositing_hotspot_offset() {
     let stride = width * 4;
     let mut frame_data = vec![0u8; (stride * height) as usize];
 
-    // 4x4 cursor with hotspot at (2, 2)
+    // 4x4 cursor with hotspot at (2, 2) and opaque pixels
+    let mut cursor_data = vec![0u8; 4 * 4 * 4];
+    for pixel in cursor_data.chunks_exact_mut(4) {
+        pixel[0] = 200;
+        pixel[1] = 200;
+        pixel[2] = 200;
+        pixel[3] = 255;
+    }
+
     let cursor_shape = PointerShape {
         shape_type: PointerShapeType::ColorRgba,
         width: 4,
@@ -508,7 +516,7 @@ fn test_cursor_compositing_hotspot_offset() {
         pitch: 16,
         hotspot_x: 2,
         hotspot_y: 2,
-        data: vec![200; 4 * 4 * 4],
+        data: cursor_data,
     };
 
     // Position at (10, 10). With hotspot (2, 2), top-left corner lands at (8, 8).
