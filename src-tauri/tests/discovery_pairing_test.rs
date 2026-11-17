@@ -1,15 +1,17 @@
 //! Unit tests for LAN Auto-Discovery (mDNS) & PIN Pairing Security
 //!
 //! Tests PeerDevice serialization, mDNS lifecycle (simulated), PIN generation,
-//! verification, wrong PIN rejection, 3-attempt lockout, and session expiration.
+//! verification, wrong PIN rejection, 3-attempt lockout, session expiration,
+//! hostname sanitization, authenticated idempotence, and service unregistration.
 
+use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
 use wireless_monitor_lib::discovery::{
-    DiscoveryService, MdnsDiscovery, PeerDevice, SERVICE_TYPE,
+    sanitize_dns_label, DiscoveryService, MdnsDiscovery, PeerDevice, SERVICE_TYPE,
 };
 use wireless_monitor_lib::pairing::{
     PairingSession, PairingState, PinAuthError, PinAuthManager,
@@ -173,6 +175,33 @@ fn test_pin_lockout_after_three_failed_attempts() {
 }
 
 #[test]
+fn test_authenticated_session_idempotent_no_relockout() {
+    let mut manager = PinAuthManager::new();
+    let peer_id = "test-authenticated-idempotent";
+    let correct_pin = manager.generate_pin(peer_id);
+
+    // Initial successful verification
+    let res = manager.verify_pin(peer_id, &correct_pin);
+    assert!(res.is_ok());
+    assert!(res.unwrap());
+
+    let session = manager.get_session(peer_id).expect("Session must exist");
+    assert_eq!(session.state, PairingState::Authenticated);
+
+    // Subsequent calls with invalid/wrong PINs must NOT degrade or lockout authenticated session
+    for _ in 0..5 {
+        let res_subsequent = manager.verify_pin(peer_id, "0000");
+        assert!(res_subsequent.is_ok());
+        assert!(res_subsequent.unwrap());
+    }
+
+    assert!(!manager.is_locked_out(peer_id));
+    let session_after = manager.get_session(peer_id).expect("Session must exist");
+    assert_eq!(session_after.state, PairingState::Authenticated);
+    assert_eq!(session_after.attempts, 0);
+}
+
+#[test]
 fn test_pin_session_expiration_handling() {
     let mut manager = PinAuthManager::new();
     let peer_id = "test-receiver-expired";
@@ -239,6 +268,39 @@ fn test_pin_regenerate_resets_lockout_and_session() {
 }
 
 #[test]
+fn test_pin_entropy_distribution_and_uniqueness() {
+    let mut manager = PinAuthManager::new();
+    let mut generated_pins = HashSet::new();
+
+    // Generate 50 PINs in tight succession
+    for i in 0..50 {
+        let peer = format!("entropy-peer-{}", i);
+        let pin = manager.generate_pin(&peer);
+        assert_eq!(pin.len(), 4);
+        assert!(pin.chars().all(|c| c.is_ascii_digit()));
+        let val: u32 = pin.parse().unwrap();
+        assert!((1000..=9999).contains(&val));
+        generated_pins.insert(pin);
+    }
+
+    // High entropy should produce substantial uniqueness (>40 unique out of 50 in a 9000-space)
+    assert!(
+        generated_pins.len() >= 40,
+        "Expected high unique PIN count, got {}",
+        generated_pins.len()
+    );
+}
+
+#[test]
+fn test_mdns_hostname_sanitization() {
+    assert_eq!(sanitize_dns_label("Living Room PC"), "living-room-pc");
+    assert_eq!(sanitize_dns_label("Ismail's Tablet (2)"), "ismail-s-tablet--2");
+    assert_eq!(sanitize_dns_label("---Device---"), "device");
+    assert_eq!(sanitize_dns_label("---"), "wireless-monitor");
+    assert_eq!(sanitize_dns_label(""), "wireless-monitor");
+}
+
+#[test]
 fn test_mdns_discovery_simulated_lifecycle() {
     let discovery = MdnsDiscovery::new_simulated();
     assert!(discovery.is_simulated());
@@ -261,6 +323,20 @@ fn test_mdns_discovery_simulated_lifecycle() {
     let stop_res = discovery.stop();
     assert!(stop_res.is_ok());
     assert!(!discovery.is_advertising());
+}
+
+#[test]
+fn test_mdns_unregister_on_stop() {
+    let discovery = MdnsDiscovery::new_simulated();
+    assert!(discovery.get_registered_service_name().is_none());
+
+    let res = discovery.start_advertising("Living Room PC", 9000, "host");
+    assert!(res.is_ok());
+    assert!(discovery.get_registered_service_name().is_some());
+
+    let stop_res = discovery.stop();
+    assert!(stop_res.is_ok());
+    assert!(discovery.get_registered_service_name().is_none());
 }
 
 #[test]

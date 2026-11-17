@@ -78,7 +78,30 @@ impl PairingSession {
     }
 }
 
+/// OS-level entropy extraction
+#[cfg(windows)]
+fn get_os_random_bytes(buf: &mut [u8]) -> bool {
+    #[link(name = "advapi32")]
+    extern "system" {
+        #[link_name = "SystemFunction036"]
+        fn RtlGenRandom(buffer: *mut u8, length: u32) -> u8;
+    }
+    unsafe { RtlGenRandom(buf.as_mut_ptr(), buf.len() as u32) != 0 }
+}
+
+#[cfg(not(windows))]
+fn get_os_random_bytes(buf: &mut [u8]) -> bool {
+    use std::fs::File;
+    use std::io::Read;
+    if let Ok(mut f) = File::open("/dev/urandom") {
+        f.read_exact(buf).is_ok()
+    } else {
+        false
+    }
+}
+
 /// Helper function to generate an unpredictable 4-digit PIN between 1000 and 9999
+/// Mixes OS CSPRNG, process ID, thread ID hash, stack address, monotonic counter, and system clock
 fn generate_random_4digit() -> u32 {
     static COUNTER: AtomicU64 = AtomicU64::new(0);
     let count = COUNTER.fetch_add(1, Ordering::Relaxed);
@@ -88,8 +111,31 @@ fn generate_random_4digit() -> u32 {
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(987654321);
 
-    // SplitMix64 pseudo-random generator
-    let mut z = nanos.wrapping_add(count.wrapping_mul(0x9E3779B97F4A7C15));
+    let pid = std::process::id() as u64;
+    let tid_hash = {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        let mut hasher = DefaultHasher::new();
+        std::thread::current().id().hash(&mut hasher);
+        hasher.finish()
+    };
+    let stack_addr = &count as *const _ as usize as u64;
+
+    let mut os_bytes = [0u8; 8];
+    let os_entropy = if get_os_random_bytes(&mut os_bytes) {
+        u64::from_le_bytes(os_bytes)
+    } else {
+        0xA5A5_5A5A_3C3C_C3C3
+    };
+
+    // Mix multi-source entropy
+    let mut z = os_entropy
+        ^ nanos.wrapping_add(count.wrapping_mul(0x9E3779B97F4A7C15))
+        ^ pid.rotate_left(16)
+        ^ tid_hash.rotate_left(32)
+        ^ stack_addr.rotate_left(48);
+
+    // SplitMix64 mixing rounds
     z = (z ^ (z >> 30)).wrapping_mul(0xBF58476D1CE4E5B9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94D049BB133111EB);
     z = z ^ (z >> 31);
@@ -151,7 +197,7 @@ impl PinAuthManager {
     /// Verify a candidate PIN against the active pairing session
     ///
     /// Returns:
-    /// - `Ok(true)` if the candidate PIN matches and session is authenticated.
+    /// - `Ok(true)` if the candidate PIN matches and session is authenticated (or already authenticated).
     /// - `Ok(false)` if candidate PIN does not match and attempts are within threshold.
     /// - `Err(...)` if format is invalid, session doesn't exist, is expired, or is locked out.
     pub fn verify_pin(&mut self, peer_id: &str, candidate_pin: &str) -> Result<bool> {
@@ -163,6 +209,12 @@ impl PinAuthManager {
         let session = self.sessions.get_mut(peer_id).ok_or_else(|| {
             PinAuthError::SessionNotFound(peer_id.to_string())
         })?;
+
+        // Idempotent State Machine: if session is already Authenticated, return Ok(true)
+        // without mutating attempt count or risking subsequent lockout
+        if session.state == PairingState::Authenticated {
+            return Ok(true);
+        }
 
         // Enforce lockout check
         if session.is_locked_out() {

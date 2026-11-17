@@ -2,7 +2,7 @@
 
 pub mod mdns;
 
-pub use mdns::MdnsDiscovery;
+pub use mdns::{sanitize_dns_label, MdnsDiscovery};
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};

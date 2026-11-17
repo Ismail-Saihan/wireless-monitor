@@ -12,12 +12,34 @@ use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 
 use super::{DiscoveryService, PeerDevice, SERVICE_TYPE};
 
+/// Sanitize a friendly device name into an RFC 1035/1123 compliant DNS host label
+pub fn sanitize_dns_label(name: &str) -> String {
+    let sanitized: String = name
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() {
+                c.to_ascii_lowercase()
+            } else {
+                '-'
+            }
+        })
+        .collect();
+
+    let trimmed = sanitized.trim_matches('-');
+    if trimmed.is_empty() {
+        "wireless-monitor".to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 /// mDNS discovery service for finding and announcing host and monitor devices
 pub struct MdnsDiscovery {
     simulated: bool,
     advertising: Arc<AtomicBool>,
     browsing: Arc<AtomicBool>,
     advertised_info: Arc<Mutex<Option<(String, u16, String)>>>,
+    registered_service_fullname: Arc<Mutex<Option<String>>>,
     discovered_peers: Arc<Mutex<Vec<PeerDevice>>>,
     browse_callback: Arc<Mutex<Option<Arc<dyn Fn(PeerDevice) + Send + Sync + 'static>>>>,
     daemon: Arc<Mutex<Option<ServiceDaemon>>>,
@@ -33,6 +55,7 @@ impl MdnsDiscovery {
             advertising: Arc::new(AtomicBool::new(false)),
             browsing: Arc::new(AtomicBool::new(false)),
             advertised_info: Arc::new(Mutex::new(None)),
+            registered_service_fullname: Arc::new(Mutex::new(None)),
             discovered_peers: Arc::new(Mutex::new(Vec::new())),
             browse_callback: Arc::new(Mutex::new(None)),
             daemon: Arc::new(Mutex::new(Some(daemon))),
@@ -47,6 +70,7 @@ impl MdnsDiscovery {
             advertising: Arc::new(AtomicBool::new(false)),
             browsing: Arc::new(AtomicBool::new(false)),
             advertised_info: Arc::new(Mutex::new(None)),
+            registered_service_fullname: Arc::new(Mutex::new(None)),
             discovered_peers: Arc::new(Mutex::new(Vec::new())),
             browse_callback: Arc::new(Mutex::new(None)),
             daemon: Arc::new(Mutex::new(None)),
@@ -75,6 +99,11 @@ impl MdnsDiscovery {
             return None;
         }
         self.advertised_info.lock().ok()?.clone()
+    }
+
+    /// Get current registered full service name (if advertised)
+    pub fn get_registered_service_name(&self) -> Option<String> {
+        self.registered_service_fullname.lock().ok()?.clone()
     }
 
     /// Get snapshot of discovered peers
@@ -118,12 +147,21 @@ impl MdnsDiscovery {
 
 impl DiscoveryService for MdnsDiscovery {
     fn start_advertising(&self, device_name: &str, port: u16, mode: &str) -> Result<()> {
+        let host_label = sanitize_dns_label(device_name);
+        let host_name = format!("{}.local.", host_label);
+
         if self.simulated {
             let mut info_guard = self
                 .advertised_info
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Mutex poisoned"))?;
             *info_guard = Some((device_name.to_string(), port, mode.to_string()));
+
+            let simulated_fullname = format!("{}.{}", device_name, SERVICE_TYPE);
+            if let Ok(mut reg_guard) = self.registered_service_fullname.lock() {
+                *reg_guard = Some(simulated_fullname);
+            }
+
             self.advertising.store(true, Ordering::SeqCst);
             return Ok(());
         }
@@ -140,7 +178,6 @@ impl DiscoveryService for MdnsDiscovery {
         properties.insert("mode".to_string(), mode.to_string());
         properties.insert("id".to_string(), device_name.to_string());
 
-        let host_name = format!("{}.local.", device_name);
         let service_info = ServiceInfo::new(
             SERVICE_TYPE,
             device_name,
@@ -149,11 +186,18 @@ impl DiscoveryService for MdnsDiscovery {
             port,
             properties,
         )
-        .context("Failed to construct ServiceInfo")?;
+        .context("Failed to construct ServiceInfo")?
+        .enable_addr_auto();
+
+        let fullname = service_info.get_fullname().to_string();
 
         daemon
             .register(service_info)
             .context("Failed to register mDNS service")?;
+
+        if let Ok(mut reg_guard) = self.registered_service_fullname.lock() {
+            *reg_guard = Some(fullname);
+        }
 
         let mut info_guard = self
             .advertised_info
@@ -272,6 +316,18 @@ impl DiscoveryService for MdnsDiscovery {
         if let Ok(mut thread_guard) = self.browse_thread.lock() {
             if let Some(handle) = thread_guard.take() {
                 let _ = handle.join();
+            }
+        }
+
+        if let Ok(mut reg_guard) = self.registered_service_fullname.lock() {
+            if let Some(fullname) = reg_guard.take() {
+                if !self.simulated {
+                    if let Ok(mut daemon_guard) = self.daemon.lock() {
+                        if let Some(daemon) = daemon_guard.as_mut() {
+                            let _ = daemon.unregister(&fullname);
+                        }
+                    }
+                }
             }
         }
 

@@ -111,19 +111,31 @@ def verify_interface_structure():
     assert "start_advertising" in disc_mod
     assert "stop" in disc_mod
 
-    # Verify MdnsDiscovery in mdns.rs
+    # Verify MdnsDiscovery in mdns.rs & Review Fixes
     assert "struct MdnsDiscovery" in mdns
     assert "new_simulated" in mdns
     assert "is_simulated" in mdns
     assert "_wireless-monitor._tcp.local" in mdns or "_wireless-monitor._tcp.local" in disc_mod
+    # Review Finding 1: enable_addr_auto
+    assert ".enable_addr_auto()" in mdns, "Missing enable_addr_auto() on ServiceInfo"
+    # Review Finding 2: unregister on stop
+    assert "registered_service_fullname" in mdns, "Missing registered_service_fullname tracking in mdns"
+    assert "unregister(" in mdns, "Missing unregister call in mdns.rs"
+    # Review Finding 3: DNS label sanitization
+    assert "fn sanitize_dns_label" in mdns, "Missing sanitize_dns_label function in mdns.rs"
 
-    # Verify PinAuthManager and PairingSession
+    # Verify PinAuthManager and PairingSession & Review Fixes
     assert "struct PinAuthManager" in pin
     assert "generate_pin" in pin
     assert "verify_pin" in pin
     assert "clear_session" in pin
     assert "struct PairingSession" in pair_mod or "struct PairingSession" in pin
     assert "enum PairingState" in pair_mod or "enum PairingState" in pin
+    # Review Finding 4: authenticated session idempotence (preventing re-lockout)
+    assert "PairingState::Authenticated" in pin
+    # Review Finding 5: multi-source entropy
+    assert "process::id()" in pin, "Missing process::id() in PIN entropy"
+    assert "thread::current().id()" in pin, "Missing thread ID in PIN entropy"
 
     print("  -> Interface, traits, and types verified successfully.")
 
@@ -229,6 +241,10 @@ class MockPinAuthManager:
 
         session = self.sessions[peer_id]
 
+        # Review Finding 4: Idempotent Authenticated State Machine
+        if session.state == "Authenticated":
+            return True
+
         if session.is_locked_out():
             raise RuntimeError(f"Maximum PIN attempts exceeded for peer '{peer_id}', session locked out")
 
@@ -246,12 +262,19 @@ class MockPinAuthManager:
             return False
 
 
+def mock_sanitize_dns_label(name: str) -> str:
+    sanitized = "".join(c.lower() if c.isalnum() else "-" for c in name)
+    trimmed = sanitized.strip("-")
+    return trimmed if trimmed else "wireless-monitor"
+
+
 class MockMdnsDiscovery:
     def __init__(self, simulated=True):
         self.simulated = simulated
         self.advertising = False
         self.browsing = False
         self.advertised_info = None
+        self.registered_service_fullname = None
         self.discovered_peers = []
         self.browse_callback = None
 
@@ -267,10 +290,14 @@ class MockMdnsDiscovery:
     def start_advertising(self, device_name, port, mode):
         self.advertising = True
         self.advertised_info = (device_name, port, mode)
+        self.registered_service_fullname = f"{device_name}._wireless-monitor._tcp.local."
         return True
 
     def get_advertised_info(self):
         return self.advertised_info if self.advertising else None
+
+    def get_registered_service_name(self):
+        return self.registered_service_fullname
 
     def start_browsing(self, callback):
         self.browsing = True
@@ -278,7 +305,6 @@ class MockMdnsDiscovery:
         return True
 
     def simulate_peer_discovered(self, peer):
-        # Update or append
         existing = [p for p in self.discovered_peers if p.id == peer.id]
         if not existing:
             self.discovered_peers.append(peer)
@@ -293,6 +319,7 @@ class MockMdnsDiscovery:
         self.advertising = False
         self.browsing = False
         self.advertised_info = None
+        self.registered_service_fullname = None
         return True
 
 
@@ -401,6 +428,26 @@ def test_pin_lockout_after_three_failed_attempts():
     print("  [PASS] test_pin_lockout_after_three_failed_attempts")
 
 
+def test_authenticated_session_idempotent_no_relockout():
+    mgr = MockPinAuthManager()
+    peer = "peer-auth-idempotent"
+    correct_pin = mgr.generate_pin(peer)
+
+    # First verify successfully
+    assert mgr.verify_pin(peer, correct_pin) is True
+    session = mgr.get_session(peer)
+    assert session.state == "Authenticated"
+
+    # Subsequent verification calls with mismatched PINs must return True and not lockout
+    for _ in range(5):
+        assert mgr.verify_pin(peer, "0000") is True
+
+    assert not mgr.is_locked_out(peer)
+    assert session.state == "Authenticated"
+    assert session.attempts == 0
+    print("  [PASS] test_authenticated_session_idempotent_no_relockout")
+
+
 def test_pin_session_expiration_handling():
     mgr = MockPinAuthManager()
     peer = "peer-exp"
@@ -452,6 +499,29 @@ def test_pin_regenerate_resets_lockout_and_session():
     print("  [PASS] test_pin_regenerate_resets_lockout_and_session")
 
 
+def test_pin_entropy_distribution_and_uniqueness():
+    mgr = MockPinAuthManager()
+    pins = set()
+    for i in range(50):
+        p = mgr.generate_pin(f"ent-{i}")
+        assert len(p) == 4
+        assert p.isdigit()
+        val = int(p)
+        assert 1000 <= val <= 9999
+        pins.add(p)
+    assert len(pins) >= 40
+    print("  [PASS] test_pin_entropy_distribution_and_uniqueness")
+
+
+def test_mdns_hostname_sanitization():
+    assert mock_sanitize_dns_label("Living Room PC") == "living-room-pc"
+    assert mock_sanitize_dns_label("Ismail's Tablet (2)") == "ismail-s-tablet--2"
+    assert mock_sanitize_dns_label("---Device---") == "device"
+    assert mock_sanitize_dns_label("---") == "wireless-monitor"
+    assert mock_sanitize_dns_label("") == "wireless-monitor"
+    print("  [PASS] test_mdns_hostname_sanitization")
+
+
 def test_mdns_discovery_simulated_lifecycle():
     d = MockMdnsDiscovery(simulated=True)
     assert d.is_simulated()
@@ -465,6 +535,18 @@ def test_mdns_discovery_simulated_lifecycle():
     assert d.stop() is True
     assert not d.is_advertising()
     print("  [PASS] test_mdns_discovery_simulated_lifecycle")
+
+
+def test_mdns_unregister_on_stop():
+    d = MockMdnsDiscovery(simulated=True)
+    assert d.get_registered_service_name() is None
+
+    assert d.start_advertising("Living Room PC", 9000, "host") is True
+    assert d.get_registered_service_name() is not None
+
+    assert d.stop() is True
+    assert d.get_registered_service_name() is None
+    print("  [PASS] test_mdns_unregister_on_stop")
 
 
 def test_mdns_discovery_browsing_and_peer_detection():
@@ -522,15 +604,19 @@ def main():
     test_pin_verification_wrong_pin_rejection()
     test_pin_verification_invalid_format_rejection()
     test_pin_lockout_after_three_failed_attempts()
+    test_authenticated_session_idempotent_no_relockout()
     test_pin_session_expiration_handling()
     test_pin_unknown_session_rejection()
     test_pin_clear_session()
     test_pin_regenerate_resets_lockout_and_session()
+    test_pin_entropy_distribution_and_uniqueness()
+    test_mdns_hostname_sanitization()
     test_mdns_discovery_simulated_lifecycle()
+    test_mdns_unregister_on_stop()
     test_mdns_discovery_browsing_and_peer_detection()
     test_mdns_discovery_thread_safety_send_sync()
 
-    print("\nAll 14 test suites passed successfully!")
+    print("\nAll 18 test suites passed successfully!")
 
 
 if __name__ == "__main__":
