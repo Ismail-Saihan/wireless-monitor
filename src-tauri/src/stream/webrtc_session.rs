@@ -446,6 +446,11 @@ impl WebRtcHostSession {
         Ok(())
     }
 
+    /// Ingest a captured frame alias for push_frame
+    pub async fn ingest_frame(&self, frame: CapturedFrame) -> Result<()> {
+        self.push_frame(frame).await
+    }
+
     /// Request an immediate IDR keyframe from the video encoder
     pub async fn request_keyframe(&self) -> Result<()> {
         if self.is_closed() {
@@ -481,6 +486,11 @@ impl WebRtcHostSession {
         Ok(false)
     }
 
+    /// Inspect incoming RTCP feedback packets alias for handle_rtcp_packet
+    pub async fn handle_rtcp_feedback(&self, packet: &[u8]) -> Result<bool> {
+        self.handle_rtcp_packet(packet).await
+    }
+
     /// Terminate peer connection and release all resources
     pub async fn close(&self) -> Result<()> {
         self.is_closed.store(true, Ordering::SeqCst);
@@ -491,5 +501,16 @@ impl WebRtcHostSession {
         pending_guard.clear();
 
         Ok(())
+    }
+
+    /// Synchronously signal session closure and clear queued packets without async await
+    pub fn close_sync(&self) {
+        self.is_closed.store(true, Ordering::SeqCst);
+        if let Ok(mut state_guard) = self.state.try_lock() {
+            *state_guard = SessionState::Closed;
+        }
+        if let Ok(mut pending_guard) = self.pending_rtp_packets.try_lock() {
+            pending_guard.clear();
+        }
     }
 }

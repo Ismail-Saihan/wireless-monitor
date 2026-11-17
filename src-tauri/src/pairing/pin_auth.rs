@@ -16,8 +16,6 @@ pub enum PinAuthError {
     Expired(String),
     #[error("Maximum PIN attempts exceeded for peer '{0}', session locked out")]
     MaxAttemptsExceeded(String),
-    #[error("Session for peer '{0}' is already locked out")]
-    LockedOut(String),
     #[error("Invalid PIN format: '{0}' (expected 4 numeric digits)")]
     InvalidPinFormat(String),
 }

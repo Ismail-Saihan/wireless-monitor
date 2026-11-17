@@ -114,6 +114,11 @@ impl MdnsDiscovery {
             .unwrap_or_default()
     }
 
+    /// Alias for get_discovered_peers
+    pub fn discovered_peers(&self) -> Vec<PeerDevice> {
+        self.get_discovered_peers()
+    }
+
     /// Clear tracked discovered peers
     pub fn clear_discovered_peers(&self) {
         if let Ok(mut peers) = self.discovered_peers.lock() {
@@ -142,6 +147,11 @@ impl MdnsDiscovery {
         }
 
         Ok(())
+    }
+
+    /// Helper method to inject a peer discovery event for testing or simulation
+    pub fn inject_peer(&self, peer: PeerDevice) -> Result<()> {
+        self.simulate_peer_discovered(peer)
     }
 }
 
@@ -253,7 +263,8 @@ impl DiscoveryService for MdnsDiscovery {
                         let addresses = info.get_addresses();
                         let ip = addresses
                             .iter()
-                            .next()
+                            .find(|a| a.is_ipv4())
+                            .or_else(|| addresses.iter().next())
                             .cloned()
                             .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED));
 

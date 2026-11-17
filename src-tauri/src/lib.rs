@@ -14,7 +14,7 @@ use crate::discovery::{DiscoveryService, MdnsDiscovery, PeerDevice};
 use crate::display::{DisplayConfig, VirtualDisplayManager, WindowsIddCxManager};
 use crate::pairing::PinAuthManager;
 use crate::receiver::MonitorReceiver;
-use crate::stream::{StreamConfig, WebRtcHostSession};
+use crate::stream::WebRtcHostSession;
 
 /// System status response for host and monitor capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,7 +171,7 @@ impl AppState {
 
     /// Get all discovered peers on the local network
     pub fn get_discovered_peers(&self) -> Vec<PeerDevice> {
-        self.discovery_service.discovered_peers()
+        self.discovery_service.get_discovered_peers()
     }
 
     /// Initiate extend display workflow to a peer device
@@ -223,10 +223,26 @@ impl AppState {
         };
 
         // Start screen capture on new monitor
-        if let Ok(mut capt) = self.screen_capturer.lock() {
-            if let Some(c) = capt.as_mut() {
-                let _ = c.start(monitor_id);
+        let capture_res = {
+            if let Ok(mut capt) = self.screen_capturer.lock() {
+                if let Some(c) = capt.as_mut() {
+                    c.start(monitor_id)
+                } else {
+                    Ok(())
+                }
+            } else {
+                Err(anyhow::anyhow!("Failed to acquire screen capturer lock"))
             }
+        };
+
+        if let Err(e) = capture_res {
+            if let Ok(mut disp) = self.display_manager.lock() {
+                let _ = disp.destroy_display(monitor_id);
+            }
+            return Err(format!(
+                "Screen capture initialization failed, rolled back display: {}",
+                e
+            ));
         }
 
         // Transition session to active
@@ -264,17 +280,14 @@ impl AppState {
             }
         }
 
-        if let Ok(mut host) = self.host_session.lock() {
-            if let Some(h) = host.as_mut() {
-                let _ = h.close();
-            }
-            *host = None;
+        let host_opt = self.host_session.lock().ok().and_then(|mut guard| guard.take());
+        if let Some(h) = host_opt {
+            let _ = h.close().await;
         }
 
-        if let Ok(mut recv) = self.receiver.lock() {
-            if let Some(mut r) = recv.take() {
-                let _ = r.disconnect().await;
-            }
+        let receiver_opt = self.receiver.lock().ok().and_then(|mut guard| guard.take());
+        if let Some(mut r) = receiver_opt {
+            let _ = r.disconnect().await;
         }
 
         if let Ok(mut disp) = self.display_manager.lock() {
@@ -305,9 +318,13 @@ impl AppState {
 
         if let Ok(mut host) = self.host_session.lock() {
             if let Some(h) = host.as_mut() {
-                let _ = h.close();
+                h.close_sync();
             }
             *host = None;
+        }
+
+        if let Ok(mut recv) = self.receiver.lock() {
+            *recv = None;
         }
 
         if let Ok(mut disp) = self.display_manager.lock() {

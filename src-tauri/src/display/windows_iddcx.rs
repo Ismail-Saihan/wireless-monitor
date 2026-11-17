@@ -10,7 +10,7 @@ use std::process::Command;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 use super::{DisplayConfig, VirtualDisplayManager};
 

@@ -10,20 +10,14 @@
 //! 7. RTCP feedback loop (PLI/FIR)
 //! 8. Session termination and clean teardown safety (destroy_all on shutdown)
 
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::sync::Mutex as TokioMutex;
-
-use wireless_monitor_lib::capture::{CapturedFrame, DxgiCapturer, ScreenCapturer};
-use wireless_monitor_lib::discovery::{DiscoveryService, MdnsDiscovery, PeerDevice};
-use wireless_monitor_lib::display::{DisplayConfig, VirtualDisplayManager, WindowsIddCxManager};
-use wireless_monitor_lib::pairing::{PairingState, PinAuthManager};
+use wireless_monitor_lib::capture::{CapturedFrame, ScreenCapturer};
+use wireless_monitor_lib::discovery::PeerDevice;
+use wireless_monitor_lib::display::VirtualDisplayManager;
 use wireless_monitor_lib::receiver::{
-    ClientScreenGeometry, MonitorReceiver, ReceiverConfig, SurfaceMode,
+    ClientScreenGeometry, MonitorReceiver, ReceiverConfig,
 };
 use wireless_monitor_lib::stream::{
-    create_mock_encoder, EncodedPacket, MockVideoEncoder, RtpPacket, RtpPacketizer, SessionState,
-    StreamConfig, VideoEncoder, WebRtcHostSession,
+    RtpPacket, StreamConfig, WebRtcHostSession,
 };
 use wireless_monitor_lib::{
     AppState, DeviceInfo, SessionStatus, SystemStatus,
@@ -262,11 +256,21 @@ async fn test_end_to_end_frame_capture_to_receiver_presentation() {
 
     // Queue frame into receiver presentation surface and render
     let rf = reassembled_frame.unwrap();
-    receiver.surface_mut().queue_frame(rf).expect("Queue frame");
-    let rendered = receiver.surface_mut().render_frame().expect("Render frame");
+    receiver
+        .surface_mut()
+        .as_mut()
+        .unwrap()
+        .queue_frame(rf)
+        .expect("Queue frame");
+    let rendered = receiver
+        .surface_mut()
+        .as_mut()
+        .unwrap()
+        .render_frame()
+        .expect("Render frame");
     assert!(rendered.is_some(), "Frame must be presented on surface");
 
-    let surface_stats = receiver.surface().stats();
+    let surface_stats = receiver.surface().as_ref().unwrap().stats();
     assert_eq!(surface_stats.rendered_frames, 1);
 
     // 7. Verify RTCP PLI Loop
