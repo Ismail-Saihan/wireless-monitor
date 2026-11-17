@@ -26,7 +26,43 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "icon": []
+    "targets": [
+      "nsis",
+      "msi",
+      "deb",
+      "appimage"
+    ],
+    "icon": [],
+    "resources": [
+      "../drivers/windows/**/*"
+    ],
+    "copyright": "Copyright © 2026 Wireless Monitor Project",
+    "category": "Utility",
+    "shortDescription": "Cross-platform bidirectional wireless virtual monitor",
+    "description": "Cross-platform bidirectional wireless virtual monitor",
+    "longDescription": "High-performance low-latency wireless virtual secondary display solution with bidirectional streaming between Windows and Linux.",
+    "windows": {
+      "nsis": {
+        "installerIcon": null,
+        "headerImage": null,
+        "sidebarImage": null
+      },
+      "wix": {
+        "language": "en-US"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libpipewire-0.3-0",
+          "libdbus-1-3",
+          "libxdo3"
+        ],
+        "section": "utils"
+      },
+      "appimage": {
+        "bundleMediaFramework": true
+      }
+    }
   }
 }
