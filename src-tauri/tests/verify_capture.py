@@ -1,6 +1,6 @@
 """
 Test and validation suite for Windows DXGI Desktop Duplication Screen Capture Pipeline.
-Verifies syntax, interface compliance, and full behavioral state machine tests.
+Verifies syntax, interface compliance, review findings fixes, and full behavioral state machine tests.
 """
 
 import os
@@ -99,6 +99,28 @@ def verify_interface_and_types():
     assert "pub fn set_simulated_resolution(" in dxgi_rs, "set_simulated_resolution() missing"
     assert "pub fn set_simulated_timeout(" in dxgi_rs, "set_simulated_timeout() missing"
 
+    # Verify Review Finding 1: Send + Sync implementation on DxgiCapturer
+    assert "unsafe impl Send for DxgiCapturer" in dxgi_rs, "DxgiCapturer must implement Send"
+    assert "unsafe impl Sync for DxgiCapturer" in dxgi_rs, "DxgiCapturer must implement Sync"
+
+    # Verify Review Finding 2: GetFramePointerShape called BEFORE ReleaseFrame()
+    get_shape_pos = dxgi_rs.find("GetFramePointerShape(")
+    release_frame_pos = dxgi_rs.find("ReleaseFrame()")
+    assert get_shape_pos != -1, "GetFramePointerShape call missing"
+    assert release_frame_pos != -1, "ReleaseFrame call missing"
+    assert get_shape_pos < release_frame_pos, "GetFramePointerShape must be called BEFORE ReleaseFrame while desktop lock is owned"
+
+    # Verify Review Finding 3: dest_x uses position.x directly without subtracting hotspot
+    assert "let dest_x = position.x;" in dxgi_rs, "dest_x must use position.x directly"
+    assert "let dest_y = position.y;" in dxgi_rs, "dest_y must use position.y directly"
+
+    # Verify Review Finding 4: Cursor persistence when mouse is stationary (LastMouseUpdateTime == 0)
+    assert "state.last_pointer_position" in dxgi_rs, "last_pointer_position caching required"
+    assert "frame_info.LastMouseUpdateTime > 0" in dxgi_rs, "Only update pointer position when LastMouseUpdateTime > 0"
+
+    # Verify Review Finding 5: Graceful handling of None resource_opt when AccumulatedFrames == 0
+    assert "if let Some(resource) = resource_opt" in dxgi_rs, "resource_opt must be checked without unconditional context/unwrap"
+
     # Verify no silent fallback in new()
     assert "simulated: false" in dxgi_rs, "new() must initialize simulated = false"
 
@@ -107,7 +129,7 @@ def verify_interface_and_types():
     assert "pub struct PointerShape" in dxgi_rs or "pub struct PointerShape" in mod_rs
     assert "pub struct PointerPosition" in dxgi_rs or "pub struct PointerPosition" in mod_rs
 
-    print("  -> Interface, types, and module declarations verified successfully.")
+    print("  -> Interface, types, and review fixes verified successfully.")
 
 
 class SimulatedCapturedFrame:
@@ -174,8 +196,9 @@ def simulated_composite_cursor(
     if not position.visible:
         return
 
-    dest_x = position.x - shape.hotspot_x
-    dest_y = position.y - shape.hotspot_y
+    # In DXGI Desktop Duplication, Position is already the top-left coordinate
+    dest_x = position.x
+    dest_y = position.y
 
     if shape.shape_type in (SimulatedPointerShapeType.ColorRgba, SimulatedPointerShapeType.ColorBgra):
         is_bgra = shape.shape_type == SimulatedPointerShapeType.ColorBgra
@@ -285,9 +308,12 @@ class SimulatedDxgiCapturer:
         self.simulated_width = 1920
         self.simulated_height = 1080
         self.simulated_timeout = False
+        self.simulated_zero_accumulated_frames = False
         self.frame_counter = 0
         self.simulated_cursor_position = None
         self.simulated_cursor_shape = None
+        self.simulated_last_pointer_position = None
+        self.simulated_last_frame_data = None
         self.dropped = False
 
     def is_simulated(self) -> bool:
@@ -310,15 +336,27 @@ class SimulatedDxgiCapturer:
     def set_simulated_timeout(self, timeout: bool):
         self.simulated_timeout = timeout
 
+    def set_simulated_zero_accumulated_frames(self, zero: bool):
+        self.simulated_zero_accumulated_frames = zero
+
     def set_simulated_cursor(self, pos, shape):
         self.simulated_cursor_position = pos
+        if pos:
+            self.simulated_last_pointer_position = pos
         self.simulated_cursor_shape = shape
+
+    def update_simulated_cursor_position(self, pos):
+        self.simulated_cursor_position = pos
+        if pos:
+            self.simulated_last_pointer_position = pos
 
     def start(self, output_index: int):
         if not self.simulated:
             raise ConnectionError("No physical DXGI adapter/output available in headless mode")
         self.output_index_val = output_index
         self.is_running_val = True
+        self.simulated_last_pointer_position = None
+        self.simulated_last_frame_data = None
 
     def capture_frame(self, timeout_ms: int):
         if not self.is_running_val:
@@ -327,18 +365,31 @@ class SimulatedDxgiCapturer:
         if self.simulated_timeout:
             return None
 
-        self.frame_counter += 1
-        stride = self.simulated_width * 4
-        data = bytearray(stride * self.simulated_height)
+        # Update last known pointer position if new position provided
+        if self.simulated_cursor_position is not None:
+            self.simulated_last_pointer_position = self.simulated_cursor_position
 
-        # Composite cursor if registered
-        if self.simulated_cursor_position and self.simulated_cursor_shape:
+        stride = self.simulated_width * 4
+
+        # Handle zero accumulated frames
+        if self.simulated_zero_accumulated_frames:
+            if self.simulated_last_frame_data is not None:
+                data = bytearray(self.simulated_last_frame_data)
+            else:
+                return None
+        else:
+            self.frame_counter += 1
+            data = bytearray(stride * self.simulated_height)
+            self.simulated_last_frame_data = bytearray(data)
+
+        # Composite cursor using last known pointer position (persisting across stationary frames)
+        if self.simulated_last_pointer_position and self.simulated_cursor_shape:
             simulated_composite_cursor(
                 data,
                 self.simulated_width,
                 self.simulated_height,
                 stride,
-                self.simulated_cursor_position,
+                self.simulated_last_pointer_position,
                 self.simulated_cursor_shape,
             )
 
@@ -354,6 +405,8 @@ class SimulatedDxgiCapturer:
     def stop(self):
         self.is_running_val = False
         self.output_index_val = None
+        self.simulated_last_pointer_position = None
+        self.simulated_last_frame_data = None
 
     def drop(self):
         if self.is_running_val:
@@ -569,20 +622,46 @@ def run_unit_tests():
     simulated_composite_cursor(fdata_clip, 20, 20, 80, SimulatedPointerPosition(500, 500, True), clip_shape)
     print("  [PASS] test_cursor_compositing_boundary_clipping")
 
-    # Test 13: Hotspot offset
-    fdata_hotspot = bytearray(30 * 30 * 4)
-    hotspot_bytes = bytearray([200, 200, 200, 255] * 16)
-    hotspot_shape = SimulatedPointerShape(
-        SimulatedPointerShapeType.ColorRgba, 4, 4, 16, 2, 2, hotspot_bytes
+    # Test 13: Destination coordinates (Finding 3)
+    fdata_dest = bytearray(30 * 30 * 4)
+    dest_shape = SimulatedPointerShape(
+        SimulatedPointerShapeType.ColorRgba, 4, 4, 16, 2, 2, bytearray([200, 200, 200, 255] * 16)
     )
-    simulated_composite_cursor(fdata_hotspot, 30, 30, 120, SimulatedPointerPosition(10, 10, True), hotspot_shape)
-    idx_8_8 = 8 * 120 + 8 * 4
-    idx_7_7 = 7 * 120 + 7 * 4
-    assert fdata_hotspot[idx_8_8] == 200
-    assert fdata_hotspot[idx_7_7] == 0
-    print("  [PASS] test_cursor_compositing_hotspot_offset")
+    simulated_composite_cursor(fdata_dest, 30, 30, 120, SimulatedPointerPosition(10, 10, True), dest_shape)
+    idx_10_10 = 10 * 120 + 10 * 4
+    idx_9_9 = 9 * 120 + 9 * 4
+    assert fdata_dest[idx_10_10] == 200, "(10, 10) must be drawn"
+    assert fdata_dest[idx_9_9] == 0, "(9, 9) must remain 0"
+    print("  [PASS] test_cursor_compositing_destination_coordinates")
 
-    # Test 14: Drop safety
+    # Test 14: Stationary cursor persistence (Finding 4)
+    stat_capturer = SimulatedDxgiCapturer(simulated=True)
+    stat_capturer.start(0)
+    c_shape_stat = SimulatedPointerShape(
+        SimulatedPointerShapeType.ColorRgba, 2, 2, 8, 0, 0, bytearray([255, 255, 255, 255] * 4)
+    )
+    stat_capturer.set_simulated_cursor(SimulatedPointerPosition(15, 15, True), c_shape_stat)
+    sf1 = stat_capturer.capture_frame(50)
+    idx_15_15 = 15 * sf1.stride + 15 * 4
+    assert sf1.data[idx_15_15] == 255
+
+    # Mouse stops moving (None passed, simulating LastMouseUpdateTime == 0)
+    stat_capturer.update_simulated_cursor_position(None)
+    sf2 = stat_capturer.capture_frame(50)
+    assert sf2.data[idx_15_15] == 255, "Stationary cursor must not vanish"
+    print("  [PASS] test_cursor_stationary_persistence")
+
+    # Test 15: Zero accumulated frames handling (Finding 5)
+    zero_capturer = SimulatedDxgiCapturer(simulated=True)
+    zero_capturer.start(0)
+    zf1 = zero_capturer.capture_frame(50)
+    assert zf1 is not None and zf1.is_valid()
+    zero_capturer.set_simulated_zero_accumulated_frames(True)
+    zf2 = zero_capturer.capture_frame(50)
+    assert zf2 is not None and zf2.is_valid(), "Cached frame must be returned on zero accumulated frames"
+    print("  [PASS] test_zero_accumulated_frames_handling")
+
+    # Test 16: Drop safety
     drop_capturer = SimulatedDxgiCapturer(simulated=True)
     drop_capturer.start(0)
     assert drop_capturer.is_running()
@@ -590,7 +669,7 @@ def run_unit_tests():
     assert not drop_capturer.is_running()
     print("  [PASS] test_drop_safety")
 
-    print("\nALL 14 UNIT TESTS PASSED SUCCESSFULLY!")
+    print("\nALL 16 UNIT TESTS PASSED SUCCESSFULLY!")
 
 
 if __name__ == "__main__":

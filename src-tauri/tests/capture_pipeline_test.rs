@@ -494,13 +494,13 @@ fn test_cursor_compositing_boundary_clipping() {
 }
 
 #[test]
-fn test_cursor_compositing_hotspot_offset() {
+fn test_cursor_compositing_destination_coordinates() {
     let width = 30u32;
     let height = 30u32;
     let stride = width * 4;
     let mut frame_data = vec![0u8; (stride * height) as usize];
 
-    // 4x4 cursor with hotspot at (2, 2) and opaque pixels
+    // 4x4 cursor with opaque pixels
     let mut cursor_data = vec![0u8; 4 * 4 * 4];
     for pixel in cursor_data.chunks_exact_mut(4) {
         pixel[0] = 200;
@@ -519,7 +519,7 @@ fn test_cursor_compositing_hotspot_offset() {
         data: cursor_data,
     };
 
-    // Position at (10, 10). With hotspot (2, 2), top-left corner lands at (8, 8).
+    // In DXGI, position (10, 10) is the top-left destination coordinate
     let position = PointerPosition {
         x: 10,
         y: 10,
@@ -536,13 +536,82 @@ fn test_cursor_compositing_hotspot_offset() {
     )
     .expect("composite_cursor");
 
-    // (8, 8) must have been drawn
-    let idx_8_8 = (8 * stride + 8 * 4) as usize;
-    assert_eq!(frame_data[idx_8_8], 200);
+    // Top-left (10, 10) must have been drawn
+    let idx_10_10 = (10 * stride + 10 * 4) as usize;
+    assert_eq!(frame_data[idx_10_10], 200);
 
-    // (7, 7) must remain 0
-    let idx_7_7 = (7 * stride + 7 * 4) as usize;
-    assert_eq!(frame_data[idx_7_7], 0);
+    // Pixel (9, 9) must remain unchanged (0)
+    let idx_9_9 = (9 * stride + 9 * 4) as usize;
+    assert_eq!(frame_data[idx_9_9], 0);
+}
+
+#[test]
+fn test_cursor_stationary_persistence() {
+    let mut capturer = DxgiCapturer::new_simulated();
+    capturer.start(0).unwrap();
+
+    let cursor_shape = PointerShape {
+        shape_type: PointerShapeType::ColorRgba,
+        width: 2,
+        height: 2,
+        pitch: 8,
+        hotspot_x: 0,
+        hotspot_y: 0,
+        data: vec![
+            255, 255, 255, 255, 255, 255, 255, 255,
+            255, 255, 255, 255, 255, 255, 255, 255,
+        ],
+    };
+
+    // First frame: mouse moves to (15, 15)
+    capturer.set_simulated_cursor(
+        Some(PointerPosition {
+            x: 15,
+            y: 15,
+            visible: true,
+        }),
+        Some(cursor_shape),
+    );
+    let frame1 = capturer.capture_frame(50).unwrap().unwrap();
+    let idx_15_15 = (15 * frame1.stride + 15 * 4) as usize;
+    assert_eq!(frame1.data[idx_15_15], 255);
+
+    // Second frame: mouse is stationary (PointerPosition updated to None, simulating LastMouseUpdateTime == 0)
+    capturer.update_simulated_cursor_position(None);
+    let frame2 = capturer.capture_frame(50).unwrap().unwrap();
+
+    // Cursor MUST persist at (15, 15) and not vanish!
+    assert_eq!(
+        frame2.data[idx_15_15], 255,
+        "Stationary cursor must not vanish when mouse stops moving"
+    );
+}
+
+#[test]
+fn test_zero_accumulated_frames_handling() {
+    let mut capturer = DxgiCapturer::new_simulated();
+    capturer.start(0).unwrap();
+
+    // First frame: normal frame
+    let frame1 = capturer.capture_frame(50).unwrap().unwrap();
+    assert!(frame1.is_valid());
+
+    // Second frame: AccumulatedFrames == 0 (no new desktop texture, mouse update only)
+    capturer.set_simulated_zero_accumulated_frames(true);
+    let frame2_opt = capturer.capture_frame(50).unwrap();
+    assert!(
+        frame2_opt.is_some(),
+        "Should return cached frame when AccumulatedFrames == 0"
+    );
+    let frame2 = frame2_opt.unwrap();
+    assert_eq!(frame2.width, frame1.width);
+    assert_eq!(frame2.height, frame1.height);
+}
+
+#[test]
+fn test_dxgi_capturer_send_sync() {
+    fn assert_send_sync<T: Send + Sync>() {}
+    assert_send_sync::<DxgiCapturer>();
 }
 
 #[test]
