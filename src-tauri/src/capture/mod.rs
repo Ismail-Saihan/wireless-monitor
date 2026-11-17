@@ -1,10 +1,21 @@
 //! Virtual display screen capture pipeline
 
 pub mod dxgi;
+pub mod pipewire;
 
 pub use dxgi::{
     composite_cursor, DxgiCapturer, PointerPosition, PointerShape, PointerShapeType,
 };
+pub use pipewire::{
+    composite_pipewire_cursor, PipeWireCapturer, PipeWireCursorMetadata, PipeWireCursorMode,
+    PipeWirePixelFormat,
+};
+
+#[cfg(target_os = "windows")]
+pub type DefaultScreenCapturer = DxgiCapturer;
+
+#[cfg(not(target_os = "windows"))]
+pub type DefaultScreenCapturer = PipeWireCapturer;
 
 use anyhow::Result;
 
