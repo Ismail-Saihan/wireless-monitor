@@ -154,7 +154,7 @@ def test_linux_packaging_config(conf):
     depends = deb.get("depends")
     assert isinstance(depends, list), "bundle.linux.deb.depends must be a list"
 
-    required_deps = ["libpipewire-0.3-0", "libdbus-1-3"]
+    required_deps = ["libpipewire-0.3-0", "libdbus-1-3", "libxdo3"]
     for dep in required_deps:
         assert dep in depends, f"bundle.linux.deb.depends must contain '{dep}', found: {depends}"
 

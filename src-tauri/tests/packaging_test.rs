@@ -7,7 +7,7 @@
 //! and application metadata (category, descriptions, copyright).
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 /// Helper to locate tauri.conf.json from various test execution roots
 fn get_tauri_conf_path() -> PathBuf {
@@ -198,7 +198,7 @@ fn test_linux_deb_and_appimage_packaging_configuration() {
         .filter_map(|d| d.as_str())
         .collect();
 
-    let required_deps = ["libpipewire-0.3-0", "libdbus-1-3"];
+    let required_deps = ["libpipewire-0.3-0", "libdbus-1-3", "libxdo3"];
     for req_dep in &required_deps {
         assert!(
             dep_strings.contains(req_dep),
