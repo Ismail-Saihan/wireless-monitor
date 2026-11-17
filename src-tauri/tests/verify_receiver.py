@@ -622,6 +622,9 @@ def run_tests():
 if __name__ == "__main__":
     print("Starting Native Monitor (Receiver) Rendering Window verification...")
     check_file_balance("src-tauri/tests/receiver_test.rs")
+    check_file_balance("src-tauri/src/receiver/mod.rs")
+    check_file_balance("src-tauri/src/receiver/webrtc_client.rs")
+    check_file_balance("src-tauri/src/receiver/surface.rs")
     try:
         verify_code_interfaces()
     except Exception as e:
