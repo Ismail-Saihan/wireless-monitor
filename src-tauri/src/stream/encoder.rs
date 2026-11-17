@@ -20,6 +20,9 @@ pub enum EncoderBackend {
     Mock,
 }
 
+/// Type alias for VideoEncoderConfig matching stream configuration
+pub type VideoEncoderConfig = StreamConfig;
+
 /// Core interface for H.264 video encoding
 pub trait VideoEncoder: Send + Sync {
     /// Encode a captured screen frame into one or more Annex-B encoded packets
@@ -33,6 +36,9 @@ pub trait VideoEncoder: Send + Sync {
 
     /// Get the underlying encoder backend type
     fn backend_type(&self) -> EncoderBackend;
+
+    /// Dynamically update the encoding bitrate in kbps
+    fn update_bitrate(&mut self, bitrate_kbps: u32) -> Result<()>;
 }
 
 /// Auto-detect the best available hardware encoder on the current platform
@@ -180,6 +186,11 @@ impl VideoEncoder for MockVideoEncoder {
     fn backend_type(&self) -> EncoderBackend {
         EncoderBackend::Mock
     }
+
+    fn update_bitrate(&mut self, bitrate_kbps: u32) -> Result<()> {
+        self.config.target_bitrate_kbps = bitrate_kbps;
+        Ok(())
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -249,6 +260,11 @@ impl VideoEncoder for WindowsMfEncoder {
     fn backend_type(&self) -> EncoderBackend {
         EncoderBackend::MediaFoundation
     }
+
+    fn update_bitrate(&mut self, bitrate_kbps: u32) -> Result<()> {
+        self.config.target_bitrate_kbps = bitrate_kbps;
+        Ok(())
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -316,6 +332,11 @@ impl VideoEncoder for LinuxVaapiEncoder {
     fn backend_type(&self) -> EncoderBackend {
         EncoderBackend::Vaapi
     }
+
+    fn update_bitrate(&mut self, bitrate_kbps: u32) -> Result<()> {
+        self.config.target_bitrate_kbps = bitrate_kbps;
+        Ok(())
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -382,5 +403,10 @@ impl VideoEncoder for SoftwareH264Encoder {
 
     fn backend_type(&self) -> EncoderBackend {
         EncoderBackend::SoftwareOpenH264
+    }
+
+    fn update_bitrate(&mut self, bitrate_kbps: u32) -> Result<()> {
+        self.config.target_bitrate_kbps = bitrate_kbps;
+        Ok(())
     }
 }

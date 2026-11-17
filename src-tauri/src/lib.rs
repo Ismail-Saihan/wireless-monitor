@@ -18,7 +18,7 @@ use crate::pairing::{IncomingRequest, PinAuthManager};
 use crate::receiver::{
     ClientScreenGeometry, MonitorReceiver, ReceiverConfig, WindowsD3D11Surface,
 };
-use crate::stream::WebRtcHostSession;
+use crate::stream::{StreamSettings, WebRtcHostSession};
 
 /// System status response for host and monitor capabilities
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,6 +80,7 @@ pub struct AppState {
     pub pin_auth_manager: Arc<Mutex<PinAuthManager>>,
     pub receiver: Arc<Mutex<Option<MonitorReceiver>>>,
     pub windows_surface: Arc<Mutex<Option<WindowsD3D11Surface>>>,
+    pub stream_settings: Arc<Mutex<StreamSettings>>,
     pub active_session: Arc<Mutex<Option<SessionStatus>>>,
     pub app_role: Arc<Mutex<String>>,
     pub device_id: String,
@@ -126,6 +127,7 @@ impl AppState {
             pin_auth_manager: Arc::new(Mutex::new(PinAuthManager::new())),
             receiver: Arc::new(Mutex::new(None)),
             windows_surface: Arc::new(Mutex::new(None)),
+            stream_settings: Arc::new(Mutex::new(StreamSettings::default())),
             active_session: Arc::new(Mutex::new(None)),
             app_role: Arc::new(Mutex::new("host".to_string())),
             device_id: format!("device-{}", &hostname),
@@ -152,6 +154,7 @@ impl AppState {
             pin_auth_manager: Arc::new(Mutex::new(PinAuthManager::new())),
             receiver: Arc::new(Mutex::new(None)),
             windows_surface: Arc::new(Mutex::new(None)),
+            stream_settings: Arc::new(Mutex::new(StreamSettings::default())),
             active_session: Arc::new(Mutex::new(None)),
             app_role: Arc::new(Mutex::new("host".to_string())),
             device_id: format!("simulated-{}", &hostname),
@@ -514,6 +517,24 @@ impl AppState {
             .map_err(|e| e.to_string())
     }
 
+    /// Retrieve current stream settings
+    pub fn get_stream_settings(&self) -> StreamSettings {
+        self.stream_settings
+            .lock()
+            .map(|s| s.clone())
+            .unwrap_or_default()
+    }
+
+    /// Update stream settings with validation gating
+    pub fn set_stream_settings(&self, settings: StreamSettings) -> Result<StreamSettings, String> {
+        settings
+            .validate()
+            .map_err(|e| format!("Invalid stream settings: {}", e))?;
+        let mut guard = self.stream_settings.lock().map_err(|e| e.to_string())?;
+        *guard = settings.clone();
+        Ok(settings)
+    }
+
     /// Submit 4-digit PIN for session authentication
     pub fn submit_pin(&self, peer_id: &str, candidate_pin: &str) -> Result<bool, String> {
         let verified = {
@@ -526,10 +547,44 @@ impl AppState {
             return Ok(false);
         }
 
-        // Successfully paired: Create virtual display
+        // Successfully paired: Determine dynamic display configuration from settings and client geometry
+        let display_config = {
+            let client_geom = {
+                let from_receiver = if let Ok(guard) = self.receiver.lock() {
+                    guard.as_ref().map(|r| *r.geometry())
+                } else {
+                    None
+                };
+
+                let from_session = if from_receiver.is_none() {
+                    self.active_session.lock().ok().and_then(|sess| {
+                        sess.as_ref().and_then(|s| {
+                            if let (Some(res), Some(fps)) = (&s.resolution, s.fps) {
+                                let parts: Vec<&str> = res.split('x').collect();
+                                if parts.len() == 2 {
+                                    if let (Ok(w), Ok(h)) = (parts[0].parse::<u32>(), parts[1].parse::<u32>()) {
+                                        return ClientScreenGeometry::new(w, h, fps).ok();
+                                    }
+                                }
+                            }
+                            None
+                        })
+                    })
+                } else {
+                    None
+                };
+
+                from_receiver.or(from_session).unwrap_or_default()
+            };
+
+            let settings = self.stream_settings.lock().map_err(|e| e.to_string())?;
+            settings.resolve_display_config(&client_geom)
+        };
+
+        // Create virtual display with dynamically negotiated configuration
         let monitor_id = {
             let mut disp = self.display_manager.lock().map_err(|e| e.to_string())?;
-            disp.create_display(&DisplayConfig::default())
+            disp.create_display(&display_config)
                 .map_err(|e| format!("Failed to create virtual display: {}", e))?
         };
 
@@ -556,14 +611,14 @@ impl AppState {
             ));
         }
 
-        // Transition session to active
+        // Transition session to active with resolved configuration
         let session = SessionStatus {
             session_id: format!("sess-{}", peer_id),
             peer_id: peer_id.to_string(),
             state: "active".to_string(),
             monitor_id: Some(monitor_id),
-            resolution: Some("1920x1080".to_string()),
-            fps: Some(60),
+            resolution: Some(format!("{}x{}", display_config.width, display_config.height)),
+            fps: Some(display_config.refresh_rate),
             latency_ms: Some(16),
             pin: None,
         };
@@ -779,6 +834,19 @@ pub fn respond_to_request(
     state.respond_to_request(&peer_id, approved)
 }
 
+#[tauri::command]
+pub fn get_stream_settings(state: tauri::State<'_, AppState>) -> StreamSettings {
+    state.get_stream_settings()
+}
+
+#[tauri::command]
+pub fn set_stream_settings(
+    state: tauri::State<'_, AppState>,
+    settings: StreamSettings,
+) -> Result<StreamSettings, String> {
+    state.set_stream_settings(settings)
+}
+
 // ----------------------------------------------------------------------------
 // Application Runner
 // ----------------------------------------------------------------------------
@@ -813,6 +881,8 @@ pub fn run() {
             get_phase2_status,
             get_incoming_requests,
             respond_to_request,
+            get_stream_settings,
+            set_stream_settings,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

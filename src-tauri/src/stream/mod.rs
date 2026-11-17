@@ -1,12 +1,14 @@
 //! Video encoding and WebRTC streaming subsystem
 
 pub mod encoder;
+pub mod settings;
 pub mod webrtc_session;
 
 pub use encoder::{
     create_encoder, create_mock_encoder, detect_hardware_encoder, EncoderBackend,
-    MockVideoEncoder, VideoEncoder,
+    MockVideoEncoder, VideoEncoder, VideoEncoderConfig,
 };
+pub use settings::StreamSettings;
 pub use webrtc_session::{
     RtpPacket, RtpPacketizer, SessionState, SessionStats, WebRtcHostSession,
 };
