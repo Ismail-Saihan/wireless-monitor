@@ -142,23 +142,23 @@
   pub fn respond_to_request(state: tauri::State<'_, AppState>, peer_id: String, approved: bool) -> Result<bool, String>;
   ```
 
-- [ ] **Step 1: Write the failing unit tests in `src-tauri/tests/pairing_security_test.rs`**
+- [x] **Step 1: Write the failing unit tests in `src-tauri/tests/pairing_security_test.rs`**
   Test connection request generation, receiver approval/rejection state transitions, 3-attempt lockout enforcement, 300s expiration check, and remaining attempt counters.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test pairing_security_test`
   Expected: FAIL
 
-- [ ] **Step 3: Implement enhanced pairing state machine in `src-tauri/src/pairing/pin_auth.rs`**
+- [x] **Step 3: Implement enhanced pairing state machine in `src-tauri/src/pairing/pin_auth.rs`**
   - Add `PendingApproval` and `Rejected` to `PairingState`.
   - Add `IncomingRequest` tracking and approval methods to `PinAuthManager`.
   - Expose `get_incoming_requests` and `respond_to_request` Tauri commands in `src-tauri/src/lib.rs`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test pairing_security_test`
   Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add src-tauri/src/pairing/ src-tauri/src/lib.rs src-tauri/tests/pairing_security_test.rs
   git commit -m "feat(pairing): implement connection approval workflow, incoming request queue and lockout protections"
