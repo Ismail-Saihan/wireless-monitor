@@ -277,23 +277,23 @@
   - Windows bundle targets: NSIS and MSI with `drivers/windows/` bundled in application resources.
   - Linux bundle targets: `.deb` and AppImage with desktop file category and library dependencies.
 
-- [ ] **Step 1: Write packaging configuration test in `src-tauri/tests/packaging_test.rs`**
+- [x] **Step 1: Write packaging configuration test in `src-tauri/tests/packaging_test.rs`**
   Test `tauri.conf.json` validity, bundle targets (`nsis`, `msi`, `deb`, `appimage`), resource mapping for `drivers/windows/*`, and app metadata.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test packaging_test`
   Expected: FAIL on missing bundle configuration details.
 
-- [ ] **Step 3: Update `src-tauri/tauri.conf.json`**
+- [x] **Step 3: Update `src-tauri/tauri.conf.json`**
   - Add NSIS and MSI targets with driver resource mappings.
   - Add Debian and AppImage configuration with system dependencies.
   - Add bundle identifiers and author metadata.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test packaging_test`
   Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add src-tauri/tauri.conf.json src-tauri/tests/packaging_test.rs
   git commit -m "feat(packaging): configure Windows NSIS/MSI driver bundling and Linux deb/appimage distribution"
