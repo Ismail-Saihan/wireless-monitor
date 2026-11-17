@@ -209,13 +209,18 @@ impl MonitorReceiver {
             bail!("Cannot start presentation: MonitorReceiver is not connected");
         }
 
-        let surface = PresentationSurface::new_simulated(self.geometry, config.clone());
+        // Attempt native borderless fullscreen window surface first, falling back to simulated mode
+        let surface = match PresentationSurface::new_native(self.geometry, config.clone()) {
+            Ok(surf) => surf,
+            Err(_) => PresentationSurface::new_simulated(self.geometry, config.clone()),
+        };
         self.surface = Some(surface);
         self.config = config;
         self.is_presenting = true;
 
         tracing::info!(
-            "Presentation surface started (fullscreen: {:?})",
+            "Presentation surface started (mode: {:?}, fullscreen: {:?})",
+            self.surface.as_ref().map(|s| s.mode()),
             self.config.fullscreen
         );
 

@@ -237,11 +237,14 @@ class PyH264Depacketizer:
         self.stats.packets_received += 1
         seq = packet.sequence_number
 
-        # Check sequence gap
+        # Check sequence gap with signed 16-bit comparison per RFC 3550
         if self.expected_seq is not None:
             expected = self.expected_seq
-            if seq != expected:
-                diff = (seq - expected) & 0xFFFF
+            diff = (seq - expected) & 0xFFFF
+            if diff >= 0x8000:
+                diff -= 0x10000
+
+            if diff > 0:
                 self.stats.packets_lost += diff
                 self.has_gap_in_frame = True
                 self.stats.pli_sent += 1
@@ -249,8 +252,14 @@ class PyH264Depacketizer:
                 # Reset any in-progress FU-A
                 self.current_fua.clear()
                 self.current_fua_nalu_type = None
-
-        self.expected_seq = (seq + 1) & 0xFFFF
+                self.expected_seq = (seq + 1) & 0xFFFF
+            elif diff < 0:
+                # Late or duplicate packet: drop without advancing/rolling back expected_seq
+                return None
+            else:
+                self.expected_seq = (seq + 1) & 0xFFFF
+        else:
+            self.expected_seq = (seq + 1) & 0xFFFF
 
         if len(packet.payload) == 0:
             return None
@@ -297,6 +306,9 @@ class PyH264Depacketizer:
                     self.current_fua_nalu_type = None
 
         if packet.marker:
+            self.current_fua.clear()
+            self.current_fua_nalu_type = None
+
             if self.has_gap_in_frame or len(self.current_frame_annex_b) == 0:
                 self.current_frame_annex_b.clear()
                 self.has_gap_in_frame = False
@@ -539,6 +551,48 @@ def run_tests():
     assert depack.stats.packets_lost >= 1
     assert depack.stats.pli_sent == 1
     print("  [PASS] test_broken_fu_a_sequence_generates_pli")
+
+    # 7b. test_late_or_duplicate_rtp_packet_handling
+    depack = PyH264Depacketizer(0x11223344)
+    pkt100 = PyRtpPacket(96, 100, 90_000, 0x33333333, True, [0x41, 0x10, 0x20])
+    res = depack.depacketize(pkt100)
+    assert res is not None
+    assert depack.stats.packets_lost == 0
+    assert depack.stats.pli_sent == 0
+
+    # Duplicate seq 100
+    res_dup = depack.depacketize(pkt100)
+    assert res_dup is None
+    assert depack.stats.packets_lost == 0, "Duplicate packet must not register 65k packet loss!"
+    assert depack.stats.pli_sent == 0, "Duplicate packet must not send spurious PLI!"
+
+    # Forward gap to 102
+    pkt102 = PyRtpPacket(96, 102, 91_500, 0x33333333, True, [0x41, 0x30, 0x40])
+    res_gap = depack.depacketize(pkt102)
+    assert res_gap is None
+    assert depack.stats.packets_lost == 1
+    assert depack.stats.pli_sent == 1
+    depack.take_pending_rtcp()
+
+    # Late packet 101
+    pkt101 = PyRtpPacket(96, 101, 90_750, 0x33333333, True, [0x41, 0x20, 0x30])
+    res_late = depack.depacketize(pkt101)
+    assert res_late is None
+    assert depack.stats.packets_lost == 1, "Late packet must not register 65k packet loss!"
+    assert depack.stats.pli_sent == 1, "Late packet must not send duplicate PLI!"
+    assert len(depack.take_pending_rtcp()) == 0
+    print("  [PASS] test_late_or_duplicate_rtp_packet_handling")
+
+    # 7c. test_fua_accumulator_cleared_on_frame_boundary
+    depack = PyH264Depacketizer(0x11223344)
+    pkt_unclosed_fua = PyRtpPacket(96, 10, 100_000, 0x44444444, False, [0x5C, 0x85, 0xAA, 0xBB])
+    depack.depacketize(pkt_unclosed_fua)
+    pkt_marker_single = PyRtpPacket(96, 11, 100_000, 0x44444444, True, [0x41, 0x55, 0x66])
+    assert depack.depacketize(pkt_marker_single) is not None
+    pkt_stale_middle = PyRtpPacket(96, 12, 101_000, 0x44444444, False, [0x5C, 0x05, 0xCC, 0xDD])
+    assert depack.depacketize(pkt_stale_middle) is None
+    assert depack.stats.pli_sent == 1
+    print("  [PASS] test_fua_accumulator_cleared_on_frame_boundary")
 
     # 8. test_presentation_surface_simulated_lifecycle
     geo = PyClientScreenGeometry(1920, 1080, 60)

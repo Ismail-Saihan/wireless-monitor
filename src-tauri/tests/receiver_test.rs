@@ -339,6 +339,124 @@ fn test_broken_fu_a_sequence_generates_pli() {
 }
 
 #[test]
+fn test_late_or_duplicate_rtp_packet_handling() {
+    let mut depacketizer = H264Depacketizer::new(0x11223344);
+
+    // 1. In-order packet seq=100
+    let pkt100 = RtpPacket {
+        payload_type: 96,
+        sequence_number: 100,
+        timestamp: 90_000,
+        ssrc: 0x33333333,
+        marker: true,
+        payload: vec![0x41, 0x10, 0x20],
+    };
+    let res = depacketizer.depacketize(&pkt100).expect("Seq 100 succeeds");
+    assert!(res.is_some());
+    assert_eq!(depacketizer.stats().packets_lost, 0);
+    assert_eq!(depacketizer.stats().pli_sent, 0);
+
+    // 2. Duplicate packet seq=100 (seq < expected_seq=101)
+    let res_dup = depacketizer.depacketize(&pkt100).expect("Duplicate packet handled");
+    assert!(res_dup.is_none(), "Duplicate packet must be dropped");
+    assert_eq!(
+        depacketizer.stats().packets_lost,
+        0,
+        "Duplicate packet must NOT register 65k packet loss!"
+    );
+    assert_eq!(
+        depacketizer.stats().pli_sent,
+        0,
+        "Duplicate packet must NOT trigger spurious PLI!"
+    );
+    assert!(depacketizer.take_pending_rtcp().is_empty());
+
+    // 3. Forward gap packet seq=102 (missing seq=101)
+    let pkt102 = RtpPacket {
+        payload_type: 96,
+        sequence_number: 102,
+        timestamp: 91_500,
+        ssrc: 0x33333333,
+        marker: true,
+        payload: vec![0x41, 0x30, 0x40],
+    };
+    let res_gap = depacketizer.depacketize(&pkt102).expect("Seq 102 handled");
+    assert!(res_gap.is_none());
+    assert_eq!(depacketizer.stats().packets_lost, 1, "Exactly 1 packet lost");
+    assert_eq!(depacketizer.stats().pli_sent, 1, "Exactly 1 PLI sent");
+
+    // Clear pending PLI
+    assert_eq!(depacketizer.take_pending_rtcp().len(), 1);
+
+    // 4. Late out-of-order packet seq=101 (now seq < expected_seq=103)
+    let pkt101 = RtpPacket {
+        payload_type: 96,
+        sequence_number: 101,
+        timestamp: 90_750,
+        ssrc: 0x33333333,
+        marker: true,
+        payload: vec![0x41, 0x20, 0x30],
+    };
+    let res_late = depacketizer.depacketize(&pkt101).expect("Late packet handled");
+    assert!(res_late.is_none(), "Late packet must be ignored/dropped");
+    assert_eq!(
+        depacketizer.stats().packets_lost,
+        1,
+        "Late packet must NOT register spurious 65k packet loss"
+    );
+    assert_eq!(
+        depacketizer.stats().pli_sent,
+        1,
+        "Late packet must NOT trigger additional spurious PLI"
+    );
+    assert!(
+        depacketizer.take_pending_rtcp().is_empty(),
+        "No pending PLI for late packet"
+    );
+}
+
+#[test]
+fn test_fua_accumulator_cleared_on_frame_boundary() {
+    let mut depacketizer = H264Depacketizer::new(0x11223344);
+
+    // Send an unclosed FU-A fragment (Start bit set, but never receives End bit)
+    let pkt_unclosed_fua = RtpPacket {
+        payload_type: 96,
+        sequence_number: 10,
+        timestamp: 100_000,
+        ssrc: 0x44444444,
+        marker: false,
+        payload: vec![0x5C, 0x85, 0xAA, 0xBB], // Start FU-A
+    };
+    assert!(depacketizer.depacketize(&pkt_unclosed_fua).unwrap().is_none());
+
+    // Next packet arrives as a single NALU with marker=true (boundary of frame)
+    let pkt_marker_single = RtpPacket {
+        payload_type: 96,
+        sequence_number: 11,
+        timestamp: 100_000,
+        ssrc: 0x44444444,
+        marker: true,
+        payload: vec![0x41, 0x55, 0x66],
+    };
+    let res = depacketizer.depacketize(&pkt_marker_single).unwrap();
+    assert!(res.is_some());
+
+    // Subsequent frame FU-A continuation packet should NOT append to stale accumulator
+    let pkt_stale_middle = RtpPacket {
+        payload_type: 96,
+        sequence_number: 12,
+        timestamp: 101_000,
+        ssrc: 0x44444444,
+        marker: false,
+        payload: vec![0x5C, 0x05, 0xCC, 0xDD], // Middle FU-A
+    };
+    // Because accumulator was cleared at frame boundary, middle fragment has no start -> gap/drop!
+    assert!(depacketizer.depacketize(&pkt_stale_middle).unwrap().is_none());
+    assert_eq!(depacketizer.stats().pli_sent, 1);
+}
+
+#[test]
 fn test_presentation_surface_simulated_lifecycle() {
     let geo = ClientScreenGeometry::new(1920, 1080, 60).unwrap();
     let config = ReceiverConfig {

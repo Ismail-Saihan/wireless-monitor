@@ -185,11 +185,12 @@ impl H264Depacketizer {
 
         let mut gap_detected_this_packet = false;
 
-        // Sequence number gap detection (16-bit sequence tracking)
+        // Sequence number gap detection (16-bit signed sequence tracking per RFC 3550)
         if let Some(expected) = self.expected_seq {
-            if seq != expected {
-                let lost = seq.wrapping_sub(expected);
-                self.stats.packets_lost += lost as u64;
+            let diff = seq.wrapping_sub(expected) as i16;
+            if diff > 0 {
+                // Forward sequence gap: missing packets
+                self.stats.packets_lost += diff as u64;
                 self.has_gap_in_frame = true;
                 gap_detected_this_packet = true;
                 self.stats.pli_sent += 1;
@@ -198,10 +199,17 @@ impl H264Depacketizer {
                 // Clear any in-progress FU-A assembly due to sequence loss
                 self.current_fua.clear();
                 self.current_fua_nalu_type = None;
+                self.expected_seq = Some(seq.wrapping_add(1));
+            } else if diff < 0 {
+                // Late or duplicate packet: drop without rolling back expected_seq
+                return Ok(None);
+            } else {
+                // In-sequence packet
+                self.expected_seq = Some(seq.wrapping_add(1));
             }
+        } else {
+            self.expected_seq = Some(seq.wrapping_add(1));
         }
-
-        self.expected_seq = Some(seq.wrapping_add(1));
 
         if packet.payload.is_empty() {
             return Ok(None);
@@ -262,6 +270,10 @@ impl H264Depacketizer {
 
         // Check RTP Marker bit indicating access unit (frame) boundary
         if packet.marker {
+            // Prevent unclosed FU-A fragment accumulator leakage across frame boundaries
+            self.current_fua.clear();
+            self.current_fua_nalu_type = None;
+
             if self.has_gap_in_frame || self.current_frame_annex_b.is_empty() {
                 // Drop incomplete / corrupted frame and await IDR keyframe
                 self.current_frame_annex_b.clear();
