@@ -10,8 +10,8 @@ echo.
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Administrative privileges required.
-    echo Requesting User Account Control (UAC) elevation...
-    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c `\"%~dpnx0`\"' -Verb RunAs"
+    echo Requesting User Account Control [UAC] elevation...
+    powershell -NoProfile -Command "$ws = Start-Process -FilePath '%~dpnx0' -Verb RunAs -Wait -PassThru; exit $ws.ExitCode"
     exit /b %errorlevel%
 )
 
@@ -31,7 +31,7 @@ for %%f in ("%~dp0*.cer") do (
 if %CER_COUNT% equ 0 (
     echo [INFO] No standalone .cer certificates found in driver directory.
 ) else (
-    echo [OK] %CER_COUNT% certificate(s) installed.
+    echo [OK] %CER_COUNT% certificates installed.
 )
 echo.
 
@@ -67,7 +67,7 @@ echo.
 
 :: 5. Register installation metadata in Windows Registry ONLY if driver was installed
 if !DRIVER_INSTALLED! equ 1 (
-    echo [4/4] Writing registry markers (HKLM\SOFTWARE\VirtualDisplayDriver)...
+    echo [4/4] Writing registry markers [HKLM\SOFTWARE\VirtualDisplayDriver]...
     reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "Installed" /t REG_DWORD /d 1 /f >nul 2>&1
     reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "InstallPath" /t REG_SZ /d "%~dp0" /f >nul 2>&1
     reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "DriverModel" /t REG_SZ /d "IddCx" /f >nul 2>&1

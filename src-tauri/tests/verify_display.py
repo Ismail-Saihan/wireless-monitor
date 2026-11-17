@@ -102,14 +102,17 @@ def verify_interface_and_types():
     # Verify Fix 2: Exit code propagation in install_driver()
     assert "exit $p.ExitCode" in iddcx_rs, "install_driver() must propagate child process exit code"
 
-    # Verify Fix 3: Proper backtick quote escaping in batch files
+    # Verify Fix Round 2: Native PowerShell self-elevation with path quoting and no parentheses syntax errors
     with open("drivers/windows/install_driver.bat", "r", encoding="utf-8") as f:
         install_bat = f.read()
     with open("drivers/windows/uninstall_driver.bat", "r", encoding="utf-8") as f:
         uninstall_bat = f.read()
     
-    assert r'`\"%~dpnx0`\"' in install_bat, "install_driver.bat must use backtick escaping for self-elevation"
-    assert r'`\"%~dpnx0`\"' in uninstall_bat, "uninstall_driver.bat must use backtick escaping for self-elevation"
+    assert "Start-Process -FilePath '%~dpnx0' -Verb RunAs" in install_bat, "install_driver.bat must use Start-Process -FilePath"
+    assert "Start-Process -FilePath '%~dpnx0' -Verb RunAs" in uninstall_bat, "uninstall_driver.bat must use Start-Process -FilePath"
+    assert "(UAC)" not in install_bat, "install_driver.bat must not contain unescaped parentheses inside if block"
+    assert "(UAC)" not in uninstall_bat, "uninstall_driver.bat must not contain unescaped parentheses inside if block"
+    assert "certificate(s)" not in install_bat, "install_driver.bat must not contain unescaped parentheses in else block"
 
     # Verify Fix 4: Published OEM name deletion in uninstall_driver.bat
     assert 'pnputil /enum-drivers' in uninstall_bat, "uninstall_driver.bat must query published OEM driver names"

@@ -10,8 +10,8 @@ echo.
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Administrative privileges required.
-    echo Requesting User Account Control (UAC) elevation...
-    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c `\"%~dpnx0`\"' -Verb RunAs"
+    echo Requesting User Account Control [UAC] elevation...
+    powershell -NoProfile -Command "$ws = Start-Process -FilePath '%~dpnx0' -Verb RunAs -Wait -PassThru; exit $ws.ExitCode"
     exit /b %errorlevel%
 )
 
@@ -32,7 +32,7 @@ for %%i in ("%~dp0*.inf") do (
     echo Querying published OEM name for !INF_ORIG!...
     for /f "usebackq delims=" %%o in (`powershell -NoProfile -Command "$name = '%%~nxi'; (pnputil /enum-drivers | Select-String -Pattern 'Published Name:\s+(oem\d+\.inf)' -Context 0,2 | Where-Object { $_.Context.PostContext -match $name } | ForEach-Object { $_.Matches[0].Groups[1].Value })"`) do (
         if not "%%o"=="" (
-            echo Deleting published driver package %%o ^(original: !INF_ORIG!^)...
+            echo Deleting published driver package %%o [original: !INF_ORIG!]...
             pnputil /delete-driver "%%o" /uninstall /force >nul 2>&1
         )
     )
@@ -47,7 +47,7 @@ for /f "usebackq delims=" %%o in (`powershell -NoProfile -Command "(pnputil /enu
 )
 
 :: 4. Clean up registry keys
-echo [3/3] Removing registry entries (HKLM\SOFTWARE\VirtualDisplayDriver)...
+echo [3/3] Removing registry entries [HKLM\SOFTWARE\VirtualDisplayDriver]...
 reg delete "HKLM\SOFTWARE\VirtualDisplayDriver" /f >nul 2>&1
 
 echo.
