@@ -102,20 +102,23 @@ This application provides a seamless, open, high-performance, bidirectional wire
 
 ## 5. Development Roadmap & Phasing
 
-### Phase 1: Windows Host → Linux Receiver (MVP)
+### Phase 1: Windows Host → Linux Receiver (MVP) — [COMPLETED]
 - **1.1:** Bundle WHQL-signed IddCx driver binaries and automate installation & dynamic monitor plug/unplug on Windows.
 - **1.2:** Implement DXGI Desktop Duplication capture in Rust for the virtual adapter.
 - **1.3:** Setup WebRTC streaming pipeline with H.264 encoding.
 - **1.4:** Build Linux Tauri Receiver app with native hardware-accelerated presentation window in fullscreen.
 - **1.5:** End-to-end testing: Extend Windows desktop to Linux laptop.
 
-### Phase 2: Linux Host → Windows Receiver (Full Bidirectionality)
-- **2.1:** Implement GNOME Mutter & KDE Plasma D-Bus virtual monitor creator.
-- **2.2:** Connect PipeWire stream to the WebRTC video encoder on Linux.
-- **2.3:** Build Windows Tauri Receiver app for viewing the Linux virtual display.
-- **2.4:** End-to-end testing: Extend Linux desktop to Windows PC.
+### Phase 2: Linux Host → Windows Receiver (Full Bidirectionality) — [COMPLETED]
+*Detailed Spec: [2026-11-17-phase2-bidirectional-design.md](2026-11-17-phase2-bidirectional-design.md)*  
+*Detailed Plan: [../plans/2026-11-17-wireless-monitor-phase2.md](../plans/2026-11-17-wireless-monitor-phase2.md)*
+- **2.1:** Implement GNOME Mutter & FreeDesktop XDG Desktop Portal (KDE Plasma 6) D-Bus virtual monitor creator.
+- **2.2:** Connect PipeWire screencast stream to the WebRTC video encoder on Linux with cursor compositing.
+- **2.3:** Build Windows Tauri Receiver Direct3D11 presentation surface for low-latency borderless fullscreen rendering.
+- **2.4:** Stage signed Windows driver binaries (`drivers/windows/`) with automated UAC and PnP registration.
+- **2.5:** End-to-end testing: Full bidirectional mode switching and automated test suites.
 
-### Phase 3: Pairing Security, Polish & Packaging
+### Phase 3: Pairing Security Polish, Quality & Packaging — [NEXT]
 - **3.1:** mDNS bidirectional service discovery on LAN.
 - **3.2:** 4-digit PIN pairing and connection approval dialog.
 - **3.3:** Auto-resolution handshake and settings panel (resolution, bitrate cap, framerate).
