@@ -199,23 +199,23 @@
   pub fn set_stream_settings(state: tauri::State<'_, AppState>, settings: StreamSettings) -> Result<StreamSettings, String>;
   ```
 
-- [ ] **Step 1: Write the failing unit tests in `src-tauri/tests/settings_handshake_test.rs`**
+- [x] **Step 1: Write the failing unit tests in `src-tauri/tests/settings_handshake_test.rs`**
   Test default settings resolution, geometry resolution ("auto" adopting client geometry, explicit 1080p/1440p/4k overrides), validation bounds, and dynamic encoder bitrate adjustment.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test settings_handshake_test`
   Expected: FAIL
 
-- [ ] **Step 3: Implement `StreamSettings` in `src-tauri/src/stream/settings.rs`**
+- [x] **Step 3: Implement `StreamSettings` in `src-tauri/src/stream/settings.rs`**
   - Implement struct, validation, and resolution matching logic.
   - Wire settings into `AppState` and expose `get_stream_settings` and `set_stream_settings` commands in `src-tauri/src/lib.rs`.
   - Pass negotiated resolution into `create_display` in `submit_pin`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
   Run: `cargo test --manifest-path src-tauri/Cargo.toml --test settings_handshake_test`
   Expected: PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
   ```bash
   git add src-tauri/src/stream/ src-tauri/src/lib.rs src-tauri/tests/settings_handshake_test.rs
   git commit -m "feat(stream): implement stream settings management and dynamic resolution handshake"
