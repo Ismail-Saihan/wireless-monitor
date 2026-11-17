@@ -163,20 +163,15 @@ pub struct PipeWireCapturer {
     last_frame_data: Option<Vec<u8>>,
 }
 
-unsafe impl Send for PipeWireCapturer {}
-unsafe impl Sync for PipeWireCapturer {}
-
 impl PipeWireCapturer {
     /// Create a new PipeWireCapturer. Defaults to simulated mode when not running on Linux.
     pub fn new(width: u32, height: u32) -> Self {
+        let mut capturer = Self::new_simulated(width, height);
         #[cfg(target_os = "linux")]
         {
-            Self::from_node(0, width, height)
+            capturer.is_simulated = false;
         }
-        #[cfg(not(target_os = "linux"))]
-        {
-            Self::new_simulated(width, height)
-        }
+        capturer
     }
 
     /// Create an explicitly simulated PipeWireCapturer for testing and CI
@@ -308,6 +303,21 @@ impl PipeWireCapturer {
         if width == 0 || height == 0 {
             bail!("Invalid frame dimensions: {}x{}", width, height);
         }
+        let min_stride = match format {
+            PipeWirePixelFormat::RGBA
+            | PipeWirePixelFormat::BGRA
+            | PipeWirePixelFormat::RGBx
+            | PipeWirePixelFormat::BGRx => width * 4,
+            PipeWirePixelFormat::RGB | PipeWirePixelFormat::BGR => width * 3,
+        };
+        if src_stride < min_stride {
+            bail!(
+                "Source stride {} is smaller than minimum required stride {} for width {}",
+                src_stride,
+                min_stride,
+                width
+            );
+        }
         let min_required = (src_stride as usize) * (height as usize);
         if raw_data.len() < min_required {
             bail!(
@@ -401,6 +411,44 @@ impl PipeWireCapturer {
     ) -> Result<()> {
         composite_pipewire_cursor(frame_data, frame_width, frame_height, frame_stride, cursor)
     }
+
+    /// Composite cursor onto the frame buffer if cursor mode is Metadata and
+    /// active or cached cursor data is available.
+    pub fn composite_cursor_if_needed(
+        &self,
+        frame_data: &mut [u8],
+        stride: u32,
+    ) -> Result<()> {
+        if self.cursor_mode != PipeWireCursorMode::Metadata {
+            return Ok(());
+        }
+
+        if let Some(ref cursor) = self.cursor_metadata {
+            composite_pipewire_cursor(
+                frame_data,
+                self.width,
+                self.height,
+                stride,
+                cursor,
+            )?;
+        } else if let (Some(pos), Some(ref cached)) =
+            (self.last_cursor_pos, &self.cached_cursor_data)
+        {
+            // Persistent stationary cursor across frames
+            let mut stationary = cached.clone();
+            stationary.x = pos.0;
+            stationary.y = pos.1;
+            composite_pipewire_cursor(
+                frame_data,
+                self.width,
+                self.height,
+                stride,
+                &stationary,
+            )?;
+        }
+
+        Ok(())
+    }
 }
 
 impl ScreenCapturer for PipeWireCapturer {
@@ -413,8 +461,11 @@ impl ScreenCapturer for PipeWireCapturer {
             bail!("Invalid output dimensions: {}x{}", self.width, self.height);
         }
 
-        if self.is_simulated {
+        if self.node_id.is_none() || self.node_id == Some(0) {
             self.node_id = Some(output_index);
+        }
+
+        if self.is_simulated {
             self.is_running = true;
             self.frame_counter = 0;
             self.stride = calculate_aligned_stride(self.width, 4, 16);
@@ -428,9 +479,6 @@ impl ScreenCapturer for PipeWireCapturer {
 
         #[cfg(target_os = "linux")]
         {
-            if self.node_id.is_none() {
-                self.node_id = Some(output_index);
-            }
             self.is_running = true;
             self.frame_counter = 0;
             self.stride = calculate_aligned_stride(self.width, 4, 16);
@@ -473,31 +521,7 @@ impl ScreenCapturer for PipeWireCapturer {
                 }
             }
 
-            if self.cursor_mode == PipeWireCursorMode::Metadata {
-                if let Some(ref cursor) = self.cursor_metadata {
-                    composite_pipewire_cursor(
-                        &mut data,
-                        self.width,
-                        self.height,
-                        stride,
-                        cursor,
-                    )?;
-                } else if let (Some(pos), Some(ref cached)) =
-                    (self.last_cursor_pos, &self.cached_cursor_data)
-                {
-                    // Persistent stationary cursor across frames
-                    let mut stationary = cached.clone();
-                    stationary.x = pos.0;
-                    stationary.y = pos.1;
-                    composite_pipewire_cursor(
-                        &mut data,
-                        self.width,
-                        self.height,
-                        stride,
-                        &stationary,
-                    )?;
-                }
-            }
+            self.composite_cursor_if_needed(&mut data, stride)?;
 
             let timestamp_us = self.frame_counter * 16_666;
             self.last_frame_data = Some(data.clone());
@@ -517,17 +541,7 @@ impl ScreenCapturer for PipeWireCapturer {
             let stride = calculate_aligned_stride(self.width, 4, 16);
             let mut data = vec![0u8; (stride as usize) * (self.height as usize)];
 
-            if self.cursor_mode == PipeWireCursorMode::Metadata {
-                if let Some(ref cursor) = self.cursor_metadata {
-                    composite_pipewire_cursor(
-                        &mut data,
-                        self.width,
-                        self.height,
-                        stride,
-                        cursor,
-                    )?;
-                }
-            }
+            self.composite_cursor_if_needed(&mut data, stride)?;
 
             let timestamp_us = self.frame_counter * 16_666;
             Ok(Some(CapturedFrame {

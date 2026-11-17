@@ -350,3 +350,89 @@ fn test_real_pipewire_on_non_linux() {
         assert!(err_msg.contains("Linux"));
     }
 }
+
+#[test]
+fn test_ingest_raw_buffer_invalid_stride_rejected() {
+    // 10x10 RGBA image requires src_stride >= 10 * 4 = 40
+    let truncated_stride_data = vec![0u8; 30 * 10];
+    let res = PipeWireCapturer::ingest_raw_buffer(
+        &truncated_stride_data,
+        10,
+        10,
+        30, // Invalid: less than width * 4
+        PipeWirePixelFormat::RGBA,
+    );
+    assert!(res.is_err());
+    let err_msg = res.unwrap_err().to_string();
+    assert!(err_msg.contains("smaller than minimum required stride"));
+
+    // 10x10 RGB 24-bit requires src_stride >= 10 * 3 = 30
+    let res_rgb = PipeWireCapturer::ingest_raw_buffer(
+        &truncated_stride_data,
+        10,
+        10,
+        25, // Invalid: less than width * 3
+        PipeWirePixelFormat::RGB,
+    );
+    assert!(res_rgb.is_err());
+    assert!(res_rgb.unwrap_err().to_string().contains("smaller than minimum required stride"));
+}
+
+#[test]
+fn test_composite_cursor_if_needed() {
+    let mut capturer = PipeWireCapturer::new_simulated(50, 50);
+    capturer.start(1).unwrap();
+
+    let mut frame_buf = vec![0u8; 50 * 50 * 4];
+
+    // Hidden mode: does not composite
+    capturer.set_cursor_mode(PipeWireCursorMode::Hidden);
+    let cursor = PipeWireCursorMetadata {
+        x: 5,
+        y: 5,
+        visible: true,
+        width: 2,
+        height: 2,
+        hotspot_x: 0,
+        hotspot_y: 0,
+        data: vec![255, 0, 0, 255; 4],
+    };
+    capturer.set_cursor_metadata(Some(cursor.clone()));
+    assert!(capturer.composite_cursor_if_needed(&mut frame_buf, 50 * 4).is_ok());
+    assert_ne!(frame_buf[(5 * 50 * 4) + (5 * 4)], 255);
+
+    // Metadata mode: composites active cursor
+    capturer.set_cursor_mode(PipeWireCursorMode::Metadata);
+    assert!(capturer.composite_cursor_if_needed(&mut frame_buf, 50 * 4).is_ok());
+    assert_eq!(frame_buf[(5 * 50 * 4) + (5 * 4)], 255);
+
+    // Stationary cursor: when metadata is None, cached cursor persists
+    capturer.set_cursor_metadata(None);
+    let mut frame_buf2 = vec![0u8; 50 * 50 * 4];
+    assert!(capturer.composite_cursor_if_needed(&mut frame_buf2, 50 * 4).is_ok());
+    assert_eq!(frame_buf2[(5 * 50 * 4) + (5 * 4)], 255);
+}
+
+#[test]
+fn test_pipewire_capturer_new() {
+    let mut capturer = PipeWireCapturer::new(1280, 720);
+    assert_eq!(capturer.width(), 1280);
+    assert_eq!(capturer.height(), 720);
+    assert_eq!(capturer.node_id(), None);
+
+    #[cfg(not(target_os = "linux"))]
+    {
+        // On non-Linux, new() defaults to simulated mode
+        assert!(capturer.is_simulated());
+        assert!(capturer.start(3).is_ok());
+        assert_eq!(capturer.node_id(), Some(3));
+    }
+}
+
+#[test]
+fn test_pipewire_capturer_thread_safety() {
+    fn assert_send<T: Send>() {}
+    fn assert_sync<T: Sync>() {}
+    assert_send::<PipeWireCapturer>();
+    assert_sync::<PipeWireCapturer>();
+}
