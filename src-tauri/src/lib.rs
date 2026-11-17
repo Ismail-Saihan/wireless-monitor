@@ -14,7 +14,7 @@ use crate::discovery::{DiscoveryService, MdnsDiscovery, PeerDevice};
 use crate::display::{
     DisplayConfig, VirtualDisplayManager, WaylandBackend, WaylandDisplayManager, WindowsIddCxManager,
 };
-use crate::pairing::PinAuthManager;
+use crate::pairing::{IncomingRequest, PinAuthManager};
 use crate::receiver::{
     ClientScreenGeometry, MonitorReceiver, ReceiverConfig, WindowsD3D11Surface,
 };
@@ -499,6 +499,21 @@ impl AppState {
         Ok(session)
     }
 
+    /// Retrieve all pending connection requests awaiting receiver approval
+    pub fn get_incoming_requests(&self) -> Vec<IncomingRequest> {
+        self.pin_auth_manager
+            .lock()
+            .map(|auth| auth.get_all_pending_requests())
+            .unwrap_or_default()
+    }
+
+    /// Respond to an incoming connection request (approve or reject)
+    pub fn respond_to_request(&self, peer_id: &str, approved: bool) -> Result<bool, String> {
+        let mut auth = self.pin_auth_manager.lock().map_err(|e| e.to_string())?;
+        auth.respond_connection(peer_id, approved)
+            .map_err(|e| e.to_string())
+    }
+
     /// Submit 4-digit PIN for session authentication
     pub fn submit_pin(&self, peer_id: &str, candidate_pin: &str) -> Result<bool, String> {
         let verified = {
@@ -750,6 +765,20 @@ pub fn get_phase2_status(state: tauri::State<'_, AppState>) -> Phase2Status {
     state.get_phase2_status()
 }
 
+#[tauri::command]
+pub fn get_incoming_requests(state: tauri::State<'_, AppState>) -> Vec<IncomingRequest> {
+    state.get_incoming_requests()
+}
+
+#[tauri::command]
+pub fn respond_to_request(
+    state: tauri::State<'_, AppState>,
+    peer_id: String,
+    approved: bool,
+) -> Result<bool, String> {
+    state.respond_to_request(&peer_id, approved)
+}
+
 // ----------------------------------------------------------------------------
 // Application Runner
 // ----------------------------------------------------------------------------
@@ -782,6 +811,8 @@ pub fn run() {
             start_linux_host,
             start_windows_receiver,
             get_phase2_status,
+            get_incoming_requests,
+            respond_to_request,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

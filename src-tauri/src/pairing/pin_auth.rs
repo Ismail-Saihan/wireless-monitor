@@ -18,15 +18,51 @@ pub enum PinAuthError {
     MaxAttemptsExceeded(String),
     #[error("Invalid PIN format: '{0}' (expected 4 numeric digits)")]
     InvalidPinFormat(String),
+    #[error("Connection request for peer '{0}' was rejected")]
+    ConnectionRejected(String),
+    #[error("Connection request for peer '{0}' is pending approval")]
+    PendingApproval(String),
 }
 
 /// Lifecycle state of a pairing session
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PairingState {
+    PendingApproval,
+    PendingPin,
+    #[serde(alias = "Pending")]
     Pending,
     Authenticated,
     LockedOut,
     Expired,
+    Rejected,
+}
+
+impl PartialEq for PairingState {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (PairingState::PendingApproval, PairingState::PendingApproval) => true,
+            (PairingState::PendingPin, PairingState::PendingPin) => true,
+            (PairingState::Pending, PairingState::Pending) => true,
+            (PairingState::PendingPin, PairingState::Pending)
+            | (PairingState::Pending, PairingState::PendingPin) => true,
+            (PairingState::Authenticated, PairingState::Authenticated) => true,
+            (PairingState::LockedOut, PairingState::LockedOut) => true,
+            (PairingState::Expired, PairingState::Expired) => true,
+            (PairingState::Rejected, PairingState::Rejected) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for PairingState {}
+
+/// Incoming connection request awaiting receiver approval
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct IncomingRequest {
+    pub peer_id: String,
+    pub peer_name: String,
+    pub pin: String,
+    pub requested_at: u64,
 }
 
 /// Pairing session holding security parameters for a specific peer
@@ -56,7 +92,7 @@ impl PairingSession {
             attempts: 0,
             max_attempts: 3,
             ttl,
-            state: PairingState::Pending,
+            state: PairingState::PendingPin,
         }
     }
 
@@ -144,6 +180,7 @@ fn generate_random_4digit() -> u32 {
 /// Authentication and pairing manager enforcing PIN generation, timeout, and lockout
 pub struct PinAuthManager {
     sessions: HashMap<String, PairingSession>,
+    pending_requests: HashMap<String, IncomingRequest>,
     default_ttl: Duration,
     default_max_attempts: u32,
 }
@@ -159,6 +196,7 @@ impl PinAuthManager {
     pub fn new() -> Self {
         Self {
             sessions: HashMap::new(),
+            pending_requests: HashMap::new(),
             default_ttl: Duration::from_secs(300),
             default_max_attempts: 3,
         }
@@ -168,6 +206,7 @@ impl PinAuthManager {
     pub fn with_ttl(ttl: Duration) -> Self {
         Self {
             sessions: HashMap::new(),
+            pending_requests: HashMap::new(),
             default_ttl: ttl,
             default_max_attempts: 3,
         }
@@ -177,6 +216,7 @@ impl PinAuthManager {
     pub fn with_ttl_and_max_attempts(ttl: Duration, max_attempts: u32) -> Self {
         Self {
             sessions: HashMap::new(),
+            pending_requests: HashMap::new(),
             default_ttl: ttl,
             default_max_attempts: max_attempts,
         }
@@ -188,8 +228,101 @@ impl PinAuthManager {
         let pin = format!("{:04}", pin_val);
         let mut session = PairingSession::with_ttl(&pin, peer_id, self.default_ttl);
         session.max_attempts = self.default_max_attempts;
+        session.state = PairingState::PendingPin;
         self.sessions.insert(peer_id.to_string(), session);
         pin
+    }
+
+    /// Request a new incoming connection from a peer device
+    ///
+    /// Generates a random 4-digit PIN, creates a session in `PendingApproval` state,
+    /// and enqueues an `IncomingRequest` waiting for receiver approval.
+    pub fn request_connection(&mut self, peer_id: &str, peer_name: &str) -> (String, PairingSession) {
+        let pin_val = generate_random_4digit();
+        let pin = format!("{:04}", pin_val);
+
+        let mut session = PairingSession::with_ttl(&pin, peer_id, self.default_ttl);
+        session.max_attempts = self.default_max_attempts;
+        session.state = PairingState::PendingApproval;
+
+        let requested_at = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
+        let request = IncomingRequest {
+            peer_id: peer_id.to_string(),
+            peer_name: peer_name.to_string(),
+            pin: pin.clone(),
+            requested_at,
+        };
+
+        self.sessions.insert(peer_id.to_string(), session.clone());
+        self.pending_requests.insert(peer_id.to_string(), request);
+
+        (pin, session)
+    }
+
+    /// Respond to an incoming connection request by approving or rejecting it
+    ///
+    /// - If approved, session transitions to `PendingPin` and is ready for PIN verification.
+    /// - If rejected, session transitions to `Rejected` and PIN verification is blocked.
+    pub fn respond_connection(&mut self, peer_id: &str, approved: bool) -> Result<bool, PinAuthError> {
+        let session = self.sessions.get_mut(peer_id).ok_or_else(|| {
+            PinAuthError::SessionNotFound(peer_id.to_string())
+        })?;
+
+        if session.is_expired() {
+            session.state = PairingState::Expired;
+            self.pending_requests.remove(peer_id);
+            return Err(PinAuthError::Expired(peer_id.to_string()));
+        }
+
+        if session.is_locked_out() {
+            self.pending_requests.remove(peer_id);
+            return Err(PinAuthError::MaxAttemptsExceeded(peer_id.to_string()));
+        }
+
+        if session.state == PairingState::Rejected {
+            return Err(PinAuthError::ConnectionRejected(peer_id.to_string()));
+        }
+
+        self.pending_requests.remove(peer_id);
+
+        if approved {
+            session.state = PairingState::PendingPin;
+            Ok(true)
+        } else {
+            session.state = PairingState::Rejected;
+            Ok(false)
+        }
+    }
+
+    /// Retrieve a specific pending connection request if it is still valid and awaiting approval
+    pub fn get_pending_request(&self, peer_id: &str) -> Option<IncomingRequest> {
+        if let Some(session) = self.sessions.get(peer_id) {
+            if session.is_expired() || session.is_locked_out() || session.state == PairingState::Rejected {
+                return None;
+            }
+        }
+        self.pending_requests.get(peer_id).cloned()
+    }
+
+    /// Retrieve all pending connection requests awaiting approval, sorted by requested timestamp
+    pub fn get_all_pending_requests(&self) -> Vec<IncomingRequest> {
+        let mut list = Vec::new();
+        for (peer_id, req) in &self.pending_requests {
+            if let Some(session) = self.sessions.get(peer_id) {
+                if !session.is_expired()
+                    && !session.is_locked_out()
+                    && session.state == PairingState::PendingApproval
+                {
+                    list.push(req.clone());
+                }
+            }
+        }
+        list.sort_by(|a, b| a.requested_at.cmp(&b.requested_at));
+        list
     }
 
     /// Verify a candidate PIN against the active pairing session
@@ -197,7 +330,7 @@ impl PinAuthManager {
     /// Returns:
     /// - `Ok(true)` if the candidate PIN matches and session is authenticated (or already authenticated).
     /// - `Ok(false)` if candidate PIN does not match and attempts are within threshold.
-    /// - `Err(...)` if format is invalid, session doesn't exist, is expired, or is locked out.
+    /// - `Err(...)` if format is invalid, session doesn't exist, is expired, locked out, rejected, or pending approval.
     pub fn verify_pin(&mut self, peer_id: &str, candidate_pin: &str) -> Result<bool> {
         // Enforce 4-digit numeric format
         if candidate_pin.len() != 4 || !candidate_pin.chars().all(|c| c.is_ascii_digit()) {
@@ -214,15 +347,28 @@ impl PinAuthManager {
             return Ok(true);
         }
 
+        // Enforce 300-second expiration check first
+        if session.is_expired() {
+            session.state = PairingState::Expired;
+            self.pending_requests.remove(peer_id);
+            bail!(PinAuthError::Expired(peer_id.to_string()));
+        }
+
         // Enforce lockout check
         if session.is_locked_out() {
+            session.state = PairingState::LockedOut;
+            self.pending_requests.remove(peer_id);
             bail!(PinAuthError::MaxAttemptsExceeded(peer_id.to_string()));
         }
 
-        // Enforce 300-second expiration check
-        if session.is_expired() {
-            session.state = PairingState::Expired;
-            bail!(PinAuthError::Expired(peer_id.to_string()));
+        // Rejection check: rejected sessions must never verify or spawn displays
+        if session.state == PairingState::Rejected {
+            bail!(PinAuthError::ConnectionRejected(peer_id.to_string()));
+        }
+
+        // Pending approval check: must not verify PIN while still awaiting receiver approval
+        if session.state == PairingState::PendingApproval {
+            bail!(PinAuthError::PendingApproval(peer_id.to_string()));
         }
 
         if candidate_pin == session.pin {
@@ -261,12 +407,14 @@ impl PinAuthManager {
     pub fn expire_session_for_test(&mut self, peer_id: &str) {
         if let Some(session) = self.sessions.get_mut(peer_id) {
             session.state = PairingState::Expired;
+            self.pending_requests.remove(peer_id);
         }
     }
 
     /// Clear pairing session for a peer
     pub fn clear_session(&mut self, peer_id: &str) {
         self.sessions.remove(peer_id);
+        self.pending_requests.remove(peer_id);
     }
 
     /// Return total active sessions
@@ -278,6 +426,7 @@ impl PinAuthManager {
     pub fn cleanup_expired_sessions(&mut self) -> usize {
         let initial = self.sessions.len();
         self.sessions.retain(|_, s| !s.is_expired());
+        self.pending_requests.retain(|id, _| self.sessions.contains_key(id));
         initial - self.sessions.len()
     }
 }
