@@ -5,9 +5,11 @@
 
 pub mod surface;
 pub mod webrtc_client;
+pub mod windows_surface;
 
 pub use surface::{PresentationSurface, SurfaceMode, SurfaceStats};
 pub use webrtc_client::{DepacketizerStats, H264Depacketizer, ReassembledFrame};
+pub use windows_surface::WindowsD3D11Surface;
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
