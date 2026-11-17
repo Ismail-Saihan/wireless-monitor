@@ -11,7 +11,7 @@ net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Administrative privileges required.
     echo Requesting User Account Control (UAC) elevation...
-    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~dpnx0\"\"' -Verb RunAs"
+    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c `\"%~dpnx0`\"' -Verb RunAs"
     exit /b %errorlevel%
 )
 
@@ -38,14 +38,17 @@ echo.
 :: 3. Driver staging and installation via pnputil / devcon
 echo [2/4] Registering and installing driver INF packages...
 set INF_COUNT=0
+set DRIVER_INSTALLED=0
 for %%i in ("%~dp0*.inf") do (
     set /a INF_COUNT+=1
     echo Installing INF: %%~nxi
     pnputil /add-driver "%%i" /install
+    if !errorlevel! equ 0 (
+        set DRIVER_INSTALLED=1
+    )
 )
 if %INF_COUNT% equ 0 (
     echo [INFO] No .inf driver package staged in %~dp0 yet.
-    echo [INFO] Registering virtual device metadata for companion service...
 )
 echo.
 
@@ -54,19 +57,28 @@ echo [3/4] Checking companion IPC service...
 if exist "%~dp0vdd.exe" (
     echo [INFO] Found vdd.exe companion binary. Registering service...
     "%~dp0vdd.exe" install
+    if !errorlevel! equ 0 (
+        set DRIVER_INSTALLED=1
+    )
 ) else (
     echo [INFO] Standalone companion executable not present; will be managed by app daemon.
 )
 echo.
 
-:: 5. Register installation metadata in Windows Registry
-echo [4/4] Writing registry markers (HKLM\SOFTWARE\VirtualDisplayDriver)...
-reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "Installed" /t REG_DWORD /d 1 /f >nul 2>&1
-reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "InstallPath" /t REG_SZ /d "%~dp0" /f >nul 2>&1
-reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "DriverModel" /t REG_SZ /d "IddCx" /f >nul 2>&1
+:: 5. Register installation metadata in Windows Registry ONLY if driver was installed
+if !DRIVER_INSTALLED! equ 1 (
+    echo [4/4] Writing registry markers (HKLM\SOFTWARE\VirtualDisplayDriver)...
+    reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "Installed" /t REG_DWORD /d 1 /f >nul 2>&1
+    reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "InstallPath" /t REG_SZ /d "%~dp0" /f >nul 2>&1
+    reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "DriverModel" /t REG_SZ /d "IddCx" /f >nul 2>&1
 
-echo.
-echo =======================================================
-echo  Virtual Display Driver Installation Completed Successfully!
-echo =======================================================
-exit /b 0
+    echo.
+    echo =======================================================
+    echo  Virtual Display Driver Installation Completed Successfully!
+    echo =======================================================
+    exit /b 0
+) else (
+    echo [ERROR] No driver package or companion service was installed.
+    echo Please ensure an IddCx driver INF or vdd.exe companion exists in: %~dp0
+    exit /b 1
+)

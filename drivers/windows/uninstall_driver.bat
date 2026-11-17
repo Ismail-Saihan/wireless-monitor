@@ -11,7 +11,7 @@ net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo [INFO] Administrative privileges required.
     echo Requesting User Account Control (UAC) elevation...
-    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c \"\"%~dpnx0\"\"' -Verb RunAs"
+    powershell -NoProfile -Command "Start-Process cmd.exe -ArgumentList '/c `\"%~dpnx0`\"' -Verb RunAs"
     exit /b %errorlevel%
 )
 
@@ -25,11 +25,25 @@ if exist "%~dp0vdd.exe" (
     "%~dp0vdd.exe" uninstall
 )
 
-:: 3. Remove staged driver packages using pnputil
-echo [2/3] Removing driver INF packages...
+:: 3. Remove staged driver packages from Driver Store using published OEM names
+echo [2/3] Removing driver packages from Driver Store...
 for %%i in ("%~dp0*.inf") do (
-    echo Deleting driver package: %%~nxi
-    pnputil /delete-driver "%%~nxi" /uninstall /force >nul 2>&1
+    set "INF_ORIG=%%~nxi"
+    echo Querying published OEM name for !INF_ORIG!...
+    for /f "usebackq delims=" %%o in (`powershell -NoProfile -Command "$name = '%%~nxi'; (pnputil /enum-drivers | Select-String -Pattern 'Published Name:\s+(oem\d+\.inf)' -Context 0,2 | Where-Object { $_.Context.PostContext -match $name } | ForEach-Object { $_.Matches[0].Groups[1].Value })"`) do (
+        if not "%%o"=="" (
+            echo Deleting published driver package %%o ^(original: !INF_ORIG!^)...
+            pnputil /delete-driver "%%o" /uninstall /force >nul 2>&1
+        )
+    )
+)
+
+:: Also clean up any lingering VirtualDisplayDriver / IddSampleDriver packages
+for /f "usebackq delims=" %%o in (`powershell -NoProfile -Command "(pnputil /enum-drivers | Select-String -Pattern 'Published Name:\s+(oem\d+\.inf)' -Context 0,3 | Where-Object { $_.Context.PostContext -match 'VirtualDisplay|IddSampleDriver' } | ForEach-Object { $_.Matches[0].Groups[1].Value })"`) do (
+    if not "%%o"=="" (
+        echo Deleting published driver package %%o...
+        pnputil /delete-driver "%%o" /uninstall /force >nul 2>&1
+    )
 )
 
 :: 4. Clean up registry keys

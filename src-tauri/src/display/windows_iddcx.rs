@@ -66,34 +66,25 @@ pub struct WindowsIddCxManager {
 }
 
 impl WindowsIddCxManager {
-    /// Create a new WindowsIddCxManager.
+    /// Create a new WindowsIddCxManager in real driver mode.
     ///
-    /// Automatically checks if the driver IPC pipe is available; if not available,
-    /// falls back to simulated mode so the application can run in test environments.
+    /// Driver communication occurs over the default named pipe (`\\.\pipe\VirtualDisplayDriver`).
+    /// If the driver is not installed or the pipe is not active, operations will return
+    /// clear error messages rather than silently faking virtual displays.
+    /// To run with a software mock for testing, use [`WindowsIddCxManager::new_simulated()`].
     pub fn new() -> Self {
         let default_install_script = PathBuf::from("drivers/windows/install_driver.bat");
         let default_uninstall_script = PathBuf::from("drivers/windows/uninstall_driver.bat");
 
-        let mut manager = Self {
+        Self {
             active_displays: HashMap::new(),
             next_id: 1,
             simulated: false,
-            simulated_driver_installed: true,
+            simulated_driver_installed: false,
             ipc_pipe_name: DEFAULT_IDDCX_PIPE.to_string(),
             install_script_path: default_install_script,
             uninstall_script_path: default_uninstall_script,
-        };
-
-        // If driver IPC pipe is not reachable, gracefully fallback to simulated mode
-        if !manager.check_ipc_pipe_available() {
-            debug!(
-                "IddCx IPC pipe {} not reachable; falling back to simulated mode",
-                manager.ipc_pipe_name
-            );
-            manager.simulated = true;
         }
-
-        manager
     }
 
     /// Create an explicitly simulated manager for testing and unit tests.
@@ -325,14 +316,15 @@ impl VirtualDisplayManager for WindowsIddCxManager {
 
         #[cfg(windows)]
         {
-            // Execute the batch script with elevated privileges via PowerShell Start-Process
+            // Execute the batch script with elevated privileges via PowerShell Start-Process,
+            // propagating the child process exit code through to PowerShell's exit code.
             let script_str = script.to_string_lossy();
             let status = Command::new("powershell")
                 .args([
                     "-NoProfile",
                     "-Command",
                     &format!(
-                        "Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', '\"{}\"' -Verb RunAs -Wait",
+                        "$p = Start-Process -FilePath 'cmd.exe' -ArgumentList '/c', '\"{}\"' -Verb RunAs -Wait -PassThru; exit $p.ExitCode",
                         script_str
                     ),
                 ])

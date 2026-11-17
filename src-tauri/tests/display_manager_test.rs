@@ -190,8 +190,37 @@ fn test_drop_safety() {
 }
 
 #[test]
+fn test_default_new_is_not_simulated() {
+    let mut manager = WindowsIddCxManager::new();
+    assert!(
+        !manager.is_simulated(),
+        "Default WindowsIddCxManager::new() must NOT silently fallback to simulated mode"
+    );
+
+    // Attempting to create a display without the physical driver IPC pipe must return an Err
+    let config = DisplayConfig {
+        width: 1920,
+        height: 1080,
+        refresh_rate: 60,
+    };
+    let result = manager.create_display(&config);
+    assert!(
+        result.is_err(),
+        "Creating display in real mode without driver IPC pipe must return Err"
+    );
+}
+
+#[test]
 fn test_driver_status_and_installation_check() {
-    let manager = WindowsIddCxManager::new_simulated();
-    let installed = manager.is_driver_installed();
-    assert!(installed.is_ok());
+    let mut simulated_mgr = WindowsIddCxManager::new_simulated();
+    assert!(simulated_mgr.is_simulated());
+    assert_eq!(simulated_mgr.is_driver_installed().unwrap(), true);
+
+    simulated_mgr.set_simulated_driver_installed(false);
+    assert_eq!(simulated_mgr.is_driver_installed().unwrap(), false);
+
+    let real_mgr = WindowsIddCxManager::new();
+    assert!(!real_mgr.is_simulated());
+    let installed_res = real_mgr.is_driver_installed();
+    assert!(installed_res.is_ok());
 }

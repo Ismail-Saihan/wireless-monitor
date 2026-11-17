@@ -94,7 +94,30 @@ def verify_interface_and_types():
     assert "pub fn active_displays(&self) -> Vec<u32>" in iddcx_rs, "active_displays() missing"
     assert "pub fn display_count(&self) -> usize" in iddcx_rs, "display_count() missing"
     assert "pub fn get_display_config(&self, monitor_id: u32) -> Option<&DisplayConfig>" in iddcx_rs, "get_display_config() missing"
-    print("  -> Interface and type declarations match specification.")
+    
+    # Verify Fix 1: No auto-fallback to simulated in new()
+    assert "simulated: false" in iddcx_rs, "new() must initialize simulated = false"
+    assert "simulated_driver_installed: false" in iddcx_rs, "new() must initialize simulated_driver_installed = false"
+
+    # Verify Fix 2: Exit code propagation in install_driver()
+    assert "exit $p.ExitCode" in iddcx_rs, "install_driver() must propagate child process exit code"
+
+    # Verify Fix 3: Proper backtick quote escaping in batch files
+    with open("drivers/windows/install_driver.bat", "r", encoding="utf-8") as f:
+        install_bat = f.read()
+    with open("drivers/windows/uninstall_driver.bat", "r", encoding="utf-8") as f:
+        uninstall_bat = f.read()
+    
+    assert r'`\"%~dpnx0`\"' in install_bat, "install_driver.bat must use backtick escaping for self-elevation"
+    assert r'`\"%~dpnx0`\"' in uninstall_bat, "uninstall_driver.bat must use backtick escaping for self-elevation"
+
+    # Verify Fix 4: Published OEM name deletion in uninstall_driver.bat
+    assert 'pnputil /enum-drivers' in uninstall_bat, "uninstall_driver.bat must query published OEM driver names"
+
+    # Verify Fix 5: Registry markers only written when driver is installed
+    assert '!DRIVER_INSTALLED! equ 1' in install_bat, "install_driver.bat must gate registry marker on DRIVER_INSTALLED"
+
+    print("  -> Interface, types, and review fixes verified successfully.")
 
 
 class SimulatedDisplayConfig:
@@ -117,24 +140,40 @@ class SimulatedDisplayConfig:
 
 class SimulatedWindowsIddCxManager:
     """Exact Python mirror of the Rust WindowsIddCxManager logic for behavioral verification"""
-    def __init__(self, simulated=True):
+    def __init__(self, simulated=False, pipe_available=False):
         self.active_displays = {}
         self.next_id = 1
         self.simulated = simulated
-        self.simulated_driver_installed = True
+        self.simulated_driver_installed = simulated
+        self.pipe_available = pipe_available
         self.dropped = False
 
+    def is_simulated(self):
+        return self.simulated
+
+    def set_simulated(self, sim: bool):
+        self.simulated = sim
+
+    def set_simulated_driver_installed(self, inst: bool):
+        self.simulated_driver_installed = inst
+
     def is_driver_installed(self):
-        return self.simulated_driver_installed
+        if self.simulated:
+            return self.simulated_driver_installed
+        return self.pipe_available
 
     def install_driver(self):
         if self.simulated:
             self.simulated_driver_installed = True
             return True
+        if not self.pipe_available:
+            raise RuntimeError("Driver installer failed with status 1")
         return True
 
     def create_display(self, config: SimulatedDisplayConfig):
         config.validate()
+        if not self.simulated and not self.pipe_available:
+            raise ConnectionError("Failed to open Virtual-Display-Driver IPC pipe")
         allocated_id = self.next_id
         self.next_id += 1
         self.active_displays[allocated_id] = config
@@ -262,12 +301,25 @@ def run_unit_tests():
     assert scope_mgr.display_count() == 0
     print("  [PASS] test_drop_safety")
 
-    # Test 8: Driver status
+    # Test 8: Default new() is not simulated & errors without driver pipe
+    real_mgr = SimulatedWindowsIddCxManager(simulated=False, pipe_available=False)
+    assert not real_mgr.is_simulated()
+    pipe_error_occurred = False
+    try:
+        real_mgr.create_display(SimulatedDisplayConfig(1920, 1080, 60))
+    except ConnectionError:
+        pipe_error_occurred = True
+    assert pipe_error_occurred
+    print("  [PASS] test_default_new_is_not_simulated")
+
+    # Test 9: Driver status & simulated toggle
     driver_mgr = SimulatedWindowsIddCxManager(simulated=True)
     assert driver_mgr.is_driver_installed() is True
+    driver_mgr.set_simulated_driver_installed(False)
+    assert driver_mgr.is_driver_installed() is False
     print("  [PASS] test_driver_status_and_installation_check")
 
-    print("\nALL 8 UNIT TESTS PASSED SUCCESSFULLY!")
+    print("\nALL 9 UNIT TESTS PASSED SUCCESSFULLY!")
 
 
 if __name__ == "__main__":
