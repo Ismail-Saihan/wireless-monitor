@@ -157,6 +157,17 @@ fn test_txt_record_capability_parsing() {
     assert_eq!(alt_caps, vec!["720p", "1080p"]);
     assert_eq!(alt_res, "1280x720");
     assert_eq!(alt_fps, 30);
+
+    // 4. Empty caps string (e.g. caps="") falls back to defaults
+    let mut empty_caps_props = HashMap::new();
+    empty_caps_props.insert("caps".to_string(), "".to_string());
+    empty_caps_props.insert("res".to_string(), "".to_string());
+    empty_caps_props.insert("fps".to_string(), "0".to_string());
+
+    let (empty_c, empty_r, empty_f) = parse_txt_capabilities(&empty_caps_props);
+    assert_eq!(empty_c, vec!["1080p"]);
+    assert_eq!(empty_r, "1920x1080");
+    assert_eq!(empty_f, 60);
 }
 
 #[test]
@@ -202,7 +213,7 @@ fn test_initiate_use_as_monitor_workflow() {
     let app_state = AppState::new_simulated();
 
     // Receiver initiates reverse pulling to act as monitor for remote host
-    let geometry = ClientScreenGeometry::new(2560, 1440, 60);
+    let geometry = ClientScreenGeometry::new(2560, 1440, 60).expect("valid geometry");
     let session = app_state
         .initiate_use_as_monitor("target-host-device", &geometry)
         .expect("initiate_use_as_monitor must succeed for valid target and geometry");
@@ -238,19 +249,27 @@ fn test_initiate_use_as_monitor_invalid_inputs_rejected() {
     let app_state = AppState::new_simulated();
 
     // 1. Empty peer ID must be rejected
-    let valid_geom = ClientScreenGeometry::new(1920, 1080, 60);
+    let valid_geom = ClientScreenGeometry::new(1920, 1080, 60).expect("valid geometry");
     let err_empty_id = app_state.initiate_use_as_monitor("   ", &valid_geom);
     assert!(err_empty_id.is_err());
     assert!(err_empty_id.unwrap_err().contains("empty"));
 
-    // 2. Invalid screen geometry dimensions (zero dimensions)
-    let invalid_geom = ClientScreenGeometry::new(0, 0, 60);
+    // 2. Invalid screen geometry dimensions (zero dimensions via struct literal)
+    let invalid_geom = ClientScreenGeometry {
+        width: 0,
+        height: 0,
+        refresh_rate: 60,
+    };
     let err_zero = app_state.initiate_use_as_monitor("host-pc-1", &invalid_geom);
     assert!(err_zero.is_err());
     assert!(err_zero.unwrap_err().contains("Invalid receiver geometry"));
 
-    // 3. Odd resolution dimensions (odd width/height invalid for H.264 macroblocks)
-    let odd_geom = ClientScreenGeometry::new(1921, 1080, 60);
+    // 3. Odd resolution dimensions (odd width/height invalid for H.264 macroblocks via struct literal)
+    let odd_geom = ClientScreenGeometry {
+        width: 1921,
+        height: 1080,
+        refresh_rate: 60,
+    };
     let err_odd = app_state.initiate_use_as_monitor("host-pc-1", &odd_geom);
     assert!(err_odd.is_err());
     assert!(err_odd.unwrap_err().contains("Invalid receiver geometry"));

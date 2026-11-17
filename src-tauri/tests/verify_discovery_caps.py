@@ -163,14 +163,20 @@ def parse_txt_capabilities_py(props):
     caps_raw = props.get("caps") or props.get("capabilities")
     if caps_raw:
         caps = [c.strip() for c in caps_raw.split(",") if c.strip()]
+        if not caps:
+            caps = ["1080p"]
     else:
         caps = ["1080p"]
 
-    max_res = props.get("res") or props.get("max_resolution") or "1920x1080"
+    max_res = props.get("res") or props.get("max_resolution")
+    if not max_res or not max_res.strip():
+        max_res = "1920x1080"
 
     fps_raw = props.get("fps") or props.get("max_fps")
     try:
         max_fps = int(fps_raw) if fps_raw else 60
+        if max_fps <= 0:
+            max_fps = 60
     except ValueError:
         max_fps = 60
 
@@ -354,6 +360,13 @@ def test_txt_record_capability_parsing():
     assert alt_caps == ["720p", "1080p"]
     assert alt_res == "1280x720"
     assert alt_fps == 30
+
+    # 4. Empty caps string (e.g. caps="") falls back to defaults
+    empty_caps_props = {"caps": "", "res": "", "fps": "0"}
+    empty_c, empty_r, empty_f = parse_txt_capabilities_py(empty_caps_props)
+    assert empty_c == ["1080p"]
+    assert empty_r == "1920x1080"
+    assert empty_f == 60
     print("  [PASS] test_txt_record_capability_parsing")
 
 

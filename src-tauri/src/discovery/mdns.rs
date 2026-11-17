@@ -42,13 +42,15 @@ pub fn parse_txt_capabilities(props: &HashMap<String, String>) -> (Vec<String>, 
             s.split(',')
                 .map(|item| item.trim().to_string())
                 .filter(|item| !item.is_empty())
-                .collect()
+                .collect::<Vec<String>>()
         })
+        .filter(|v| !v.is_empty())
         .unwrap_or_else(|| vec!["1080p".to_string()]);
 
     let max_res = props
         .get("res")
         .or_else(|| props.get("max_resolution"))
+        .filter(|s| !s.trim().is_empty())
         .cloned()
         .unwrap_or_else(|| "1920x1080".to_string());
 
@@ -56,6 +58,7 @@ pub fn parse_txt_capabilities(props: &HashMap<String, String>) -> (Vec<String>, 
         .get("fps")
         .or_else(|| props.get("max_fps"))
         .and_then(|s| s.parse::<u32>().ok())
+        .filter(|&fps| fps > 0)
         .unwrap_or(60);
 
     (caps, max_res, max_fps)
@@ -363,28 +366,13 @@ impl DiscoveryService for MdnsDiscovery {
                             .unwrap_or(&name)
                             .to_string();
 
-                        let capabilities = info
-                            .get_property_val_str("caps")
-                            .or_else(|| info.get_property_val_str("capabilities"))
-                            .map(|s| {
-                                s.split(',')
-                                    .map(|item| item.trim().to_string())
-                                    .filter(|item| !item.is_empty())
-                                    .collect::<Vec<String>>()
-                            })
-                            .unwrap_or_else(|| vec!["1080p".to_string()]);
-
-                        let max_resolution = info
-                            .get_property_val_str("res")
-                            .or_else(|| info.get_property_val_str("max_resolution"))
-                            .unwrap_or("1920x1080")
-                            .to_string();
-
-                        let max_fps = info
-                            .get_property_val_str("fps")
-                            .or_else(|| info.get_property_val_str("max_fps"))
-                            .and_then(|s| s.parse::<u32>().ok())
-                            .unwrap_or(60);
+                        let mut props_map = HashMap::new();
+                        for key in &["caps", "capabilities", "res", "max_resolution", "fps", "max_fps"] {
+                            if let Some(val) = info.get_property_val_str(key) {
+                                props_map.insert((*key).to_string(), val.to_string());
+                            }
+                        }
+                        let (capabilities, max_resolution, max_fps) = parse_txt_capabilities(&props_map);
 
                         let last_seen = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)

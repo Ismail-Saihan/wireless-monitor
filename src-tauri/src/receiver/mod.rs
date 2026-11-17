@@ -76,6 +76,9 @@ impl ClientScreenGeometry {
         if self.height == 0 {
             bail!("Client screen height must be greater than 0");
         }
+        if self.width % 2 != 0 || self.height % 2 != 0 {
+            bail!("Width and height must be even numbers for video streaming");
+        }
         if self.refresh_rate == 0 {
             bail!("Client screen refresh rate must be at least 1 Hz");
         }
