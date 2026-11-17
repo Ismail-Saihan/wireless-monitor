@@ -31,7 +31,7 @@ for %%f in ("%~dp0*.cer") do (
 if %CER_COUNT% equ 0 (
     echo [INFO] No standalone .cer certificates found in driver directory.
 ) else (
-    echo [OK] %CER_COUNT% certificates installed.
+    echo [OK] %CER_COUNT% certificates installed into TrustedPublisher and Root stores.
 )
 echo.
 
@@ -71,6 +71,8 @@ if !DRIVER_INSTALLED! equ 1 (
     reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "Installed" /t REG_DWORD /d 1 /f >nul 2>&1
     reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "InstallPath" /t REG_SZ /d "%~dp0" /f >nul 2>&1
     reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "DriverModel" /t REG_SZ /d "IddCx" /f >nul 2>&1
+    reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "Version" /t REG_SZ /d "1.0.0.1" /f >nul 2>&1
+    reg add "HKLM\SOFTWARE\VirtualDisplayDriver" /v "CompanionBinary" /t REG_SZ /d "%~dp0vdd.exe" /f >nul 2>&1
 
     echo.
     echo =======================================================

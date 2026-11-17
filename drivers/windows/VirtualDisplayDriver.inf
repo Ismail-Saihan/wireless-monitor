@@ -1,0 +1,81 @@
+;
+; VirtualDisplayDriver.inf
+; Windows Indirect Display Driver (IddCx) Package
+; Copyright (c) 2026 Wireless Virtual Monitor Project. All rights reserved.
+;
+
+[Version]
+Signature="$WINDOWS NT$"
+Class=Display
+ClassGuid={4d36e968-e325-11ce-bfc1-08002be10318}
+Provider=%ManufacturerName%
+CatalogFile=VirtualDisplayDriver.cat
+DriverVer=11/17/2026,1.0.0.1
+PnpLockdown=1
+
+[DestinationDirs]
+DefaultDestDir = 12
+UMDriverCopy   = 12,UMDF
+KMDriverCopy   = 12
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+VirtualDisplayDriver.dll = 1,x64
+VirtualDisplayDriver.sys = 1,x64
+
+[Manufacturer]
+%ManufacturerName%=Standard,NTamd64.10.0...16299,NTamd64
+
+[Standard.NTamd64.10.0...16299]
+%DeviceName%=VirtualDisplayDriver_Device, Root\VirtualDisplayDriver
+%DeviceName%=VirtualDisplayDriver_Device, *VDD0001
+
+[Standard.NTamd64]
+%DeviceName%=VirtualDisplayDriver_Device, Root\VirtualDisplayDriver
+%DeviceName%=VirtualDisplayDriver_Device, *VDD0001
+
+; ================= Installation Section =================
+
+[VirtualDisplayDriver_Device.NT]
+CopyFiles=UMDriverCopy,KMDriverCopy
+FeatureScore=FB
+
+[VirtualDisplayDriver_Device.NT.Services]
+AddService=WUDFRd,0x000001f8,WUDFRD_ServiceInstall
+
+[WUDFRD_ServiceInstall]
+DisplayName=%WudfRdDisplayName%
+ServiceType=1
+StartType=3
+ErrorControl=1
+ServiceBinary=%12%\WUDFRd.sys
+
+[VirtualDisplayDriver_Device.NT.Wdf]
+UmdfService=VirtualDisplayDriver,VirtualDisplayDriver_Install
+UmdfServiceOrder=VirtualDisplayDriver
+
+[VirtualDisplayDriver_Install]
+UmdfLibraryVersion=2.25.0
+ServiceBinary=%12%\UMDF\VirtualDisplayDriver.dll
+
+[UMDriverCopy]
+VirtualDisplayDriver.dll,,,0x00004000
+
+[KMDriverCopy]
+VirtualDisplayDriver.sys,,,0x00004000
+
+[VirtualDisplayDriver_Device.NT.HW]
+AddReg=VirtualDisplayDriver_Device_AddReg
+
+[VirtualDisplayDriver_Device_AddReg]
+HKR,,"IndirectDisplay",0x00010001,1
+
+; ================= Strings Section =================
+
+[Strings]
+ManufacturerName="Wireless Virtual Monitor Project"
+DiskName="Wireless Virtual Display Driver Installation Media"
+DeviceName="Wireless Virtual Display Adapter (IddCx)"
+WudfRdDisplayName="Windows Driver Foundation - User-mode Driver Framework Reflector"

@@ -19,14 +19,14 @@ echo [OK] Running with administrative privileges.
 echo.
 
 :: 2. Stop and remove companion service if present
-echo [1/3] Tearing down companion services and active virtual adapters...
+echo [1/4] Tearing down companion services and active virtual adapters...
 if exist "%~dp0vdd.exe" (
     echo Stopping and uninstalling vdd.exe companion service...
     "%~dp0vdd.exe" uninstall
 )
 
 :: 3. Remove staged driver packages from Driver Store using published OEM names
-echo [2/3] Removing driver packages from Driver Store...
+echo [2/4] Removing driver packages from Driver Store...
 for %%i in ("%~dp0*.inf") do (
     set "INF_ORIG=%%~nxi"
     echo Querying published OEM name for !INF_ORIG!...
@@ -46,8 +46,18 @@ for /f "usebackq delims=" %%o in (`powershell -NoProfile -Command "(pnputil /enu
     )
 )
 
-:: 4. Clean up registry keys
-echo [3/3] Removing registry entries [HKLM\SOFTWARE\VirtualDisplayDriver]...
+:: 4. Remove signing certificates from TrustedPublisher and Root stores
+echo [3/4] Removing driver signing certificates from system trust stores...
+for %%f in ("%~dp0*.cer") do (
+    echo Removing certificate: %%~nxf
+    certutil -delstore "TrustedPublisher" "Wireless Virtual Display Driver" >nul 2>&1
+    certutil -delstore "Root" "Wireless Virtual Display Driver" >nul 2>&1
+    certutil -delstore "TrustedPublisher" "VirtualDisplayDriver" >nul 2>&1
+    certutil -delstore "Root" "VirtualDisplayDriver" >nul 2>&1
+)
+
+:: 5. Clean up registry keys
+echo [4/4] Removing registry entries [HKLM\SOFTWARE\VirtualDisplayDriver]...
 reg delete "HKLM\SOFTWARE\VirtualDisplayDriver" /f >nul 2>&1
 
 echo.
