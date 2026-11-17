@@ -25,12 +25,18 @@ This application turns any device (Windows PC or Linux laptop) on the same local
 
 ---
 
-## 2. Current Implementation Status (Phase 2 Complete: Full Bidirectional Support)
+## 2. Current Implementation Status (Phase 3 Complete: Production Packaging, Security, UX & Capabilities)
 
-Both Phase 1 (Windows Host → Linux Receiver baseline) and Phase 2 (Linux Host, Windows Receiver, Driver Staging, and Bidirectional Orchestration) are fully implemented and verified:
+Phase 1 (Windows Host → Linux Receiver baseline), Phase 2 (Linux Host, Windows Receiver, Driver Staging, and Bidirectional Orchestration), and Phase 3 (Distribution Packaging, Connection Approval Security, Stream Settings UX, and Capabilities) are fully implemented and verified:
 
 | Subsystem | Source Path | Key Traits / Structs | Test Suite |
 | :--- | :--- | :--- | :--- |
+| **Comprehensive Phase 3 Integration Suite** | `src-tauri/tests/verify_phase3.py` | Full integration & behavioral verification across all Phase 3 interfaces | `verify_phase3.py` |
+| **mDNS Capabilities & Reverse Initiation** | `src-tauri/src/discovery/` | `PeerDevice` (capabilities, max_res, fps), `initiate_use_as_monitor` | `verify_discovery_caps.py` |
+| **Connection Approval & Enhanced Security** | `src-tauri/src/pairing/pin_auth.rs` | `IncomingRequest`, `PairingState::PendingApproval`, 3-attempt lockout, 300s TTL | `verify_pairing_security.py` |
+| **Stream Settings & Dynamic Resolution** | `src-tauri/src/stream/settings.rs` | `StreamSettings`, `resolve_display_config`, dynamic bitrate adjustment | `verify_settings_handshake.py` |
+| **Distribution Packaging & Bundling** | `src-tauri/tauri.conf.json` | NSIS & MSI (Windows + drivers), DEB & AppImage (Linux + PipeWire/D-Bus) | `verify_packaging.py` |
+| **Approval Modal & Settings Drawer UI** | `ui/src/components/` | `ApprovalModal.ts`, `SettingsDrawer.ts`, capabilities badges, role actions | `npx tsc --noEmit` |
 | **Linux Wayland Display Manager** | `src-tauri/src/display/linux_wayland.rs` | `WaylandDisplayManager`, `WaylandBackend` (Mutter/Portal/Simulated) | `verify_linux_display.py` |
 | **Linux PipeWire Screen Capturer** | `src-tauri/src/capture/pipewire.rs` | `PipeWireCapturer`, `PipeWireCursorMetadata`, `composite_pipewire_cursor` | `verify_pipewire_capture.py` |
 | **Windows D3D11 Presentation Surface** | `src-tauri/src/receiver/windows_surface.rs` | `WindowsD3D11Surface`, dynamic 2D texture, <1 frame latency dropping | `verify_windows_receiver.py` |
@@ -57,10 +63,13 @@ f:\Wireless Monitor Project\
 ├── docs/                                 <-- Architectural specifications and plans
 │   └── superpowers/
 │       ├── specs/
-│       │   └── 2026-11-17-wireless-monitor-design.md
+│       │   ├── 2026-11-17-wireless-monitor-design.md
+│       │   ├── 2026-11-17-phase2-bidirectional-design.md
+│       │   └── 2026-11-17-phase3-hardening-design.md
 │       └── plans/
 │           ├── 2026-11-17-wireless-monitor-mvp.md
-│           └── 2026-11-17-wireless-monitor-phase2.md
+│           ├── 2026-11-17-wireless-monitor-phase2.md
+│           └── 2026-11-17-wireless-monitor-phase3.md
 │
 ├── drivers/                              <-- Bundled virtual display drivers
 │   └── windows/
@@ -75,7 +84,7 @@ f:\Wireless Monitor Project\
 │
 ├── src-tauri/                            <-- Rust backend core
 │   ├── Cargo.toml
-│   ├── tauri.conf.json
+│   ├── tauri.conf.json                   <-- NSIS, MSI, deb, appimage bundle targets & driver mappings
 │   ├── src/
 │   │   ├── main.rs                       <-- Application entry point
 │   │   ├── lib.rs                        <-- Tauri command routing, AppState & teardown hooks
@@ -89,14 +98,15 @@ f:\Wireless Monitor Project\
 │   │   │   └── pipewire.rs               <-- PipeWire screencast capture & cursor compositing
 │   │   ├── stream/                       <-- WebRTC & H.264 video pipeline
 │   │   │   ├── mod.rs
-│   │   │   ├── encoder.rs                <-- Hardware / software H.264 encoding abstraction
+│   │   │   ├── settings.rs               <-- StreamSettings (Auto/1080p/1440p/4k/Custom) & dynamic negotiation
+│   │   │   ├── encoder.rs                <-- Hardware / software H.264 encoding & dynamic bitrate update
 │   │   │   └── webrtc_session.rs         <-- WebRTC peer connection, RTP packetizer & RTCP PLI/FIR
 │   │   ├── discovery/                    <-- Local network device discovery
 │   │   │   ├── mod.rs
-│   │   │   └── mdns.rs                   <-- mDNS announcement, browsing & RFC 1035 label sanitization
-│   │   ├── pairing/                      <-- PIN authentication & security
+│   │   │   └── mdns.rs                   <-- mDNS announcement with capability TXT records & browsing
+│   │   ├── pairing/                      <-- PIN authentication & connection approval
 │   │   │   ├── mod.rs
-│   │   │   └── pin_auth.rs               <-- CSPRNG 4-digit PIN challenge & 3-attempt lockout
+│   │   │   └── pin_auth.rs               <-- IncomingRequest queue, approval workflow, 3-attempt lockout, 300s TTL
 │   │   └── receiver/                     <-- Monitor mode presentation engine
 │   │       ├── mod.rs
 │   │       ├── webrtc_client.rs          <-- Client RTP stream consumer & signed sequence gap detection
@@ -104,37 +114,48 @@ f:\Wireless Monitor Project\
 │   │       └── windows_surface.rs        <-- Direct3D11 swap chain presentation surface
 │   └── tests/                            <-- Integration & unit tests
 │       ├── capture_pipeline_test.rs
+│       ├── discovery_caps_test.rs
 │       ├── discovery_pairing_test.rs
 │       ├── display_manager_test.rs
 │       ├── driver_staging_test.rs
 │       ├── e2e_bidirectional_test.rs
 │       ├── e2e_orchestration_test.rs
 │       ├── linux_display_test.rs
+│       ├── packaging_test.rs
+│       ├── pairing_security_test.rs
 │       ├── pipewire_capture_test.rs
 │       ├── receiver_test.rs
+│       ├── settings_handshake_test.rs
 │       ├── webrtc_stream_test.rs
 │       ├── windows_receiver_test.rs
 │       ├── verify_capture.py
+│       ├── verify_discovery_caps.py
 │       ├── verify_discovery_pairing.py
 │       ├── verify_display.py
 │       ├── verify_driver_staging.py
 │       ├── verify_e2e.py
 │       ├── verify_linux_display.py
+│       ├── verify_packaging.py
+│       ├── verify_pairing_security.py
 │       ├── verify_phase2.py
+│       ├── verify_phase3.py
 │       ├── verify_pipewire_capture.py
 │       ├── verify_receiver.py
+│       ├── verify_settings_handshake.py
 │       ├── verify_stream.py
 │       └── verify_windows_receiver.py
 │
 └── ui/                                   <-- Frontend dashboard & pairing interface
     ├── index.html
     └── src/
-        ├── main.ts                       <-- App initialization, polling, role switching
+        ├── main.ts                       <-- App initialization, polling, role switching, modal wiring
         ├── style.css
         └── components/
-            ├── DeviceList.ts             <-- Discovered LAN peers list & action buttons
+            ├── ApprovalModal.ts          <-- Incoming connection request approval & PIN challenge modal
+            ├── DeviceList.ts             <-- Discovered LAN peers list, capability pills & role action buttons
             ├── PairingModal.ts           <-- 4-digit PIN verification modal
-            └── StatusHeader.ts           <-- Host/Receiver role switcher, OS badge & metrics
+            ├── SettingsDrawer.ts         <-- Slide-out stream settings drawer (resolution, FPS, bitrate)
+            └── StatusHeader.ts           <-- Host/Receiver role switcher, OS badge & settings trigger
 ```
 
 ---
@@ -149,6 +170,15 @@ f:\Wireless Monitor Project\
 ### Running Tests & Verification
 Run the verification test suites before committing any change:
 ```powershell
+# Run full Phase 3 comprehensive integration verification suite
+python src-tauri/tests/verify_phase3.py
+
+# Run Phase 3 component verification suites
+python src-tauri/tests/verify_discovery_caps.py
+python src-tauri/tests/verify_pairing_security.py
+python src-tauri/tests/verify_settings_handshake.py
+python src-tauri/tests/verify_packaging.py
+
 # Run full Phase 2 bidirectional end-to-end integration test
 python src-tauri/tests/verify_phase2.py
 
@@ -220,12 +250,29 @@ Any agent modifying this codebase MUST respect these established patterns:
    - In `AppState::submit_pin()`, if screen capture fails to initialize, immediately roll back and destroy the created virtual display (`disp.destroy_display(monitor_id)`) to prevent orphaned displays.
    - `AppState::teardown()` and `WindowEvent::CloseRequested` / `Destroyed` ensure `destroy_all()` and presentation surface closing are executed on exit.
 
+8. **Macroblock Alignment (Even Dimensions Required):**
+   - H.264 video compression architectures (NVENC, AMF, QuickSync, OpenH264) mandate that frame width and height are even integers (divisible by 2) to align with chroma subsampling and macroblock structures.
+   - All client screen geometries and custom stream settings must enforce `width % 2 == 0` and `height % 2 == 0`. Auto-resolution resolution rounds down odd client dimensions to the nearest even integer (`(w // 2) * 2`).
+
+9. **Two-Stage Pairing Security (Approval Preceding PIN Challenge):**
+   - Connection attempts generate an `IncomingRequest` in the `PairingState::PendingApproval` state.
+   - PIN verification is strictly prohibited while pending approval. Only explicit receiver user authorization (`respond_to_request(peer_id, true)`) transitions the session to `PendingPin`.
+   - Any rejection immediately moves the state to `Rejected` and purges the request from the pending queue.
+   - Sessions are protected by a strict 3-attempt lockout and 300-second TTL to prevent brute-force exploitation.
+
+10. **Dynamic Stream Settings & Display Negotiation:**
+    - Stream settings decouple presentation configuration from device hardware via `StreamSettings` (`auto`, `1080p`, `1440p`, `4k`, `custom`).
+    - In `auto` mode, the host automatically creates a virtual display matching the receiver's physical display geometry and refresh rate.
+    - When stream settings are updated during runtime, the video encoder's target bitrate is dynamically adjusted without tearing down active WebRTC streaming sessions.
+
 ---
 
-## 6. Phase 2 Completion Summary
+## 6. Phase 3 Completion Summary
 
-All workstreams in Phase 2 are complete:
-- **Linux Host Mode:** Implemented GNOME Mutter & XDG Portal D-Bus virtual display creation, PipeWire screen capture, and cursor compositing.
-- **Windows Receiver Mode:** Implemented native Direct3D11 presentation surface with borderless fullscreen rendering and sub-frame latency frame dropping.
-- **Driver Packaging & Staging:** Staged signed IddCx driver, x64 UMDF/KMDF PE binaries, companion IPC service (`vdd.exe`), certutil certificate import, and pnputil automation scripts.
-- **Bidirectional Orchestration:** Exposed Tauri IPC commands (`get_operating_system`, `set_app_role`, `start_linux_host`, `start_windows_receiver`, `get_phase2_status`) and integrated role switching into the UI dashboard.
+All workstreams in Phase 3 (Production Packaging, Security Hardening, UX Refinements & Capabilities) are fully delivered and verified:
+- **mDNS Capability Broadcast & Reverse Initiation:** Extended ZeroConf discovery with capability TXT records (`caps`, `res`, `fps`) with legacy fallback, and added `initiate_use_as_monitor` enabling reverse monitor initiation from the UI.
+- **Connection Approval & Enhanced PIN Security:** Implemented two-stage connection approval workflow (`IncomingRequest`, `PairingState::PendingApproval`), 3-attempt lockout enforcement, 300s TTL session expiration, and zero display orphan guarantee.
+- **Stream Settings & Dynamic Resolution Handshake:** Implemented `StreamSettings` subsystem (`auto`, `1080p`, `1440p`, `4k`, `custom`), dynamic geometry negotiation with receiver client, framerate (1-360) and bitrate (1-100 Mbps) bounds validation, and dynamic encoder bitrate adjustment.
+- **Distribution Packaging & Bundling:** Configured `tauri.conf.json` for production distribution: Windows NSIS & MSI installers with staged virtual display driver resources (`drivers/windows/**/*`), Linux `.deb` and AppImage bundles with system dependencies (`libpipewire-0.3-0`, `libdbus-1-3`, `libxdo3`), and application metadata.
+- **Frontend UX Refinements:** Built slide-out `SettingsDrawer`, `ApprovalModal` for incoming connections, capability badges in `DeviceList`, "Use as Monitor" action buttons, and background polling.
+- **Comprehensive Verification Suite:** Delivered `src-tauri/tests/verify_phase3.py` executing all 7 Phase 3 behavioral contracts alongside syntax, interface, and driver asset checks. Zero regressions across Phase 1 and Phase 2.

@@ -9,13 +9,17 @@ Unlike typical remote desktop or windowed mirroring tools, this application crea
 ## Key Features
 
 - **True Virtual Monitor:** Move windows, adjust resolution, rearrange monitor layout, and drag the mouse seamlessly across physical and wireless screens.
-- **Full Bidirectional Support (Phase 2):**
+- **Full Bidirectional Support:**
   - **Windows Host → Linux Receiver:** DXGI desktop capture and IddCx virtual monitor streaming to Linux presentation surface.
   - **Linux Host → Windows Receiver:** GNOME Mutter & FreeDesktop XDG Desktop Portal (KDE Plasma 6) D-Bus virtual display with PipeWire screencast capture streaming to Windows Direct3D11 borderless fullscreen surface.
+- **Reverse Monitor Initiation ("Use as Monitor"):** Initiate a connection from either direction—click "Use as Monitor" on any discovered host device to instantly convert your local laptop/PC into that host's secondary screen.
+- **Two-Stage Pairing & Approval Dialog:** Security-first connection handshake featuring an explicit receiver approval modal, CSPRNG 4-digit PIN verification, 3-attempt lockout protection, and 300-second session expiration.
+- **Stream Settings & Dynamic Resolution Handshake:** Slide-out drawer with Auto resolution mode (automatically matches the receiver's physical screen geometry and refresh rate), presets for 1080p, 1440p, and 4K, or custom resolutions, with dynamic runtime encoder bitrate adjustment.
 - **Ultra-Low Latency:** Optimized WebRTC streaming with RFC 3550 & RFC 6184 RTP packetization and a sub-frame (`<1 frame`) latency drop queue targeting **sub-50ms glass-to-glass latency**.
-- **LAN Auto-Discovery:** Automatically detects nearby devices on your local network via mDNS (`_wireless-monitor._tcp.local`).
-- **PIN-Secured Pairing:** CSPRNG 4-digit PIN authentication with lockout protection prevents unauthorized screen access.
-- **Turnkey Windows Driver Staging:** Pre-packaged signed IddCx driver binaries (`drivers/windows/`) with automated UAC elevation, certificate trust store import (`certutil`), and PnP device registration (`pnputil`).
+- **LAN Auto-Discovery:** Automatically detects nearby devices on your local network via mDNS (`_wireless-monitor._tcp.local`) enriched with capability TXT records.
+- **Turnkey Production Packaging:**
+  - **Windows:** NSIS & MSI installers bundling signed Indirect Display Driver (IddCx) binaries (`vdd.exe`, `.inf`, `.cer`, `.sys`, `.dll`) and automated UAC elevation scripts.
+  - **Linux:** `.deb` and AppImage packages bundling system dependencies (`libpipewire-0.3-0`, `libdbus-1-3`, `libxdo3`).
 - **Zero-Orphan Teardown Safety:** Automatically destroys virtual displays and tears down capture sessions on disconnect, window close, or crash.
 
 ---
@@ -80,9 +84,18 @@ pnpm tauri dev
 
 ## Testing & Verification
 
-Comprehensive test suites cover unit contracts, integration, and full end-to-end bidirectional streaming:
+Comprehensive test suites cover unit contracts, integration, packaging, and full end-to-end bidirectional streaming:
 
 ```powershell
+# Run full Phase 3 comprehensive integration verification suite
+python src-tauri/tests/verify_phase3.py
+
+# Run Phase 3 component verification suites:
+python src-tauri/tests/verify_discovery_caps.py      # mDNS capability TXT records & reverse initiation
+python src-tauri/tests/verify_pairing_security.py    # Approval workflow, queue, lockout & TTL
+python src-tauri/tests/verify_settings_handshake.py  # StreamSettings & dynamic resolution negotiation
+python src-tauri/tests/verify_packaging.py           # NSIS/MSI driver bundling & Linux packaging
+
 # Run full Phase 2 bidirectional end-to-end integration test
 python src-tauri/tests/verify_phase2.py
 
@@ -110,6 +123,8 @@ npx tsc --noEmit
 
 - 📄 [Phase 1 MVP Design Spec](docs/superpowers/specs/2026-11-17-wireless-monitor-design.md)
 - 📄 [Phase 2 Bidirectional Design Spec](docs/superpowers/specs/2026-11-17-phase2-bidirectional-design.md)
+- 📄 [Phase 3 Hardening Design Spec](docs/superpowers/specs/2026-11-17-phase3-hardening-design.md)
 - 📋 [Phase 1 Implementation Plan](docs/superpowers/plans/2026-11-17-wireless-monitor-mvp.md)
 - 📋 [Phase 2 Implementation Plan](docs/superpowers/plans/2026-11-17-wireless-monitor-phase2.md)
+- 📋 [Phase 3 Implementation Plan](docs/superpowers/plans/2026-11-17-wireless-monitor-phase3.md)
 - 🤖 [Operational & Architecture Guidelines](AGENT.md)
