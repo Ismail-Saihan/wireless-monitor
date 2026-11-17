@@ -1,8 +1,19 @@
 //! Virtual display creation and lifecycle management
 
+pub mod linux_wayland;
 pub mod windows_iddcx;
 
+pub use linux_wayland::{WaylandBackend, WaylandDisplayManager};
 pub use windows_iddcx::WindowsIddCxManager;
+
+#[cfg(windows)]
+pub type DefaultVirtualDisplayManager = WindowsIddCxManager;
+
+#[cfg(target_os = "linux")]
+pub type DefaultVirtualDisplayManager = WaylandDisplayManager;
+
+#[cfg(not(any(windows, target_os = "linux")))]
+pub type DefaultVirtualDisplayManager = WaylandDisplayManager;
 
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
