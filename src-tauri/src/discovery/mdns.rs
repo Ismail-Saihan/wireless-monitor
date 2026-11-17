@@ -33,12 +33,41 @@ pub fn sanitize_dns_label(name: &str) -> String {
     }
 }
 
+/// Parse capability attributes from mDNS TXT property map with safe fallbacks
+pub fn parse_txt_capabilities(props: &HashMap<String, String>) -> (Vec<String>, String, u32) {
+    let caps = props
+        .get("caps")
+        .or_else(|| props.get("capabilities"))
+        .map(|s| {
+            s.split(',')
+                .map(|item| item.trim().to_string())
+                .filter(|item| !item.is_empty())
+                .collect()
+        })
+        .unwrap_or_else(|| vec!["1080p".to_string()]);
+
+    let max_res = props
+        .get("res")
+        .or_else(|| props.get("max_resolution"))
+        .cloned()
+        .unwrap_or_else(|| "1920x1080".to_string());
+
+    let max_fps = props
+        .get("fps")
+        .or_else(|| props.get("max_fps"))
+        .and_then(|s| s.parse::<u32>().ok())
+        .unwrap_or(60);
+
+    (caps, max_res, max_fps)
+}
+
 /// mDNS discovery service for finding and announcing host and monitor devices
 pub struct MdnsDiscovery {
     simulated: bool,
     advertising: Arc<AtomicBool>,
     browsing: Arc<AtomicBool>,
     advertised_info: Arc<Mutex<Option<(String, u16, String)>>>,
+    advertised_caps: Arc<Mutex<Option<(Vec<String>, String, u32)>>>,
     registered_service_fullname: Arc<Mutex<Option<String>>>,
     discovered_peers: Arc<Mutex<Vec<PeerDevice>>>,
     browse_callback: Arc<Mutex<Option<Arc<dyn Fn(PeerDevice) + Send + Sync + 'static>>>>,
@@ -55,6 +84,7 @@ impl MdnsDiscovery {
             advertising: Arc::new(AtomicBool::new(false)),
             browsing: Arc::new(AtomicBool::new(false)),
             advertised_info: Arc::new(Mutex::new(None)),
+            advertised_caps: Arc::new(Mutex::new(None)),
             registered_service_fullname: Arc::new(Mutex::new(None)),
             discovered_peers: Arc::new(Mutex::new(Vec::new())),
             browse_callback: Arc::new(Mutex::new(None)),
@@ -70,6 +100,7 @@ impl MdnsDiscovery {
             advertising: Arc::new(AtomicBool::new(false)),
             browsing: Arc::new(AtomicBool::new(false)),
             advertised_info: Arc::new(Mutex::new(None)),
+            advertised_caps: Arc::new(Mutex::new(None)),
             registered_service_fullname: Arc::new(Mutex::new(None)),
             discovered_peers: Arc::new(Mutex::new(Vec::new())),
             browse_callback: Arc::new(Mutex::new(None)),
@@ -99,6 +130,14 @@ impl MdnsDiscovery {
             return None;
         }
         self.advertised_info.lock().ok()?.clone()
+    }
+
+    /// Get current advertised device capabilities: (caps, max_resolution, max_fps)
+    pub fn get_advertised_caps(&self) -> Option<(Vec<String>, String, u32)> {
+        if !self.is_advertising() {
+            return None;
+        }
+        self.advertised_caps.lock().ok()?.clone()
     }
 
     /// Get current registered full service name (if advertised)
@@ -153,10 +192,17 @@ impl MdnsDiscovery {
     pub fn inject_peer(&self, peer: PeerDevice) -> Result<()> {
         self.simulate_peer_discovered(peer)
     }
-}
 
-impl DiscoveryService for MdnsDiscovery {
-    fn start_advertising(&self, device_name: &str, port: u16, mode: &str) -> Result<()> {
+    /// Start advertising service on mDNS with capability metadata
+    pub fn start_advertising_with_caps(
+        &self,
+        device_name: &str,
+        port: u16,
+        mode: &str,
+        caps: &[String],
+        max_resolution: &str,
+        max_fps: u32,
+    ) -> Result<()> {
         let host_label = sanitize_dns_label(device_name);
         let host_name = format!("{}.local.", host_label);
 
@@ -166,6 +212,10 @@ impl DiscoveryService for MdnsDiscovery {
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Mutex poisoned"))?;
             *info_guard = Some((device_name.to_string(), port, mode.to_string()));
+
+            if let Ok(mut caps_guard) = self.advertised_caps.lock() {
+                *caps_guard = Some((caps.to_vec(), max_resolution.to_string(), max_fps));
+            }
 
             let simulated_fullname = format!("{}.{}", device_name, SERVICE_TYPE);
             if let Ok(mut reg_guard) = self.registered_service_fullname.lock() {
@@ -187,6 +237,10 @@ impl DiscoveryService for MdnsDiscovery {
         let mut properties = HashMap::new();
         properties.insert("mode".to_string(), mode.to_string());
         properties.insert("id".to_string(), device_name.to_string());
+        properties.insert("caps".to_string(), caps.join(","));
+        properties.insert("res".to_string(), max_resolution.to_string());
+        properties.insert("fps".to_string(), max_fps.to_string());
+        properties.insert("os".to_string(), std::env::consts::OS.to_string());
 
         let service_info = ServiceInfo::new(
             SERVICE_TYPE,
@@ -214,9 +268,41 @@ impl DiscoveryService for MdnsDiscovery {
             .lock()
             .map_err(|_| anyhow::anyhow!("Mutex poisoned"))?;
         *info_guard = Some((device_name.to_string(), port, mode.to_string()));
+
+        if let Ok(mut caps_guard) = self.advertised_caps.lock() {
+            *caps_guard = Some((caps.to_vec(), max_resolution.to_string(), max_fps));
+        }
+
         self.advertising.store(true, Ordering::SeqCst);
 
         Ok(())
+    }
+}
+
+impl DiscoveryService for MdnsDiscovery {
+    fn start_advertising(&self, device_name: &str, port: u16, mode: &str) -> Result<()> {
+        let default_caps = vec!["1080p".to_string()];
+        self.start_advertising_with_caps(device_name, port, mode, &default_caps, "1920x1080", 60)
+    }
+
+    fn start_advertising_with_caps(
+        &self,
+        device_name: &str,
+        port: u16,
+        mode: &str,
+        caps: &[String],
+        max_resolution: &str,
+        max_fps: u32,
+    ) -> Result<()> {
+        MdnsDiscovery::start_advertising_with_caps(
+            self,
+            device_name,
+            port,
+            mode,
+            caps,
+            max_resolution,
+            max_fps,
+        )
     }
 
     fn start_browsing<F>(&self, on_peer_found: F) -> Result<()>
@@ -277,12 +363,44 @@ impl DiscoveryService for MdnsDiscovery {
                             .unwrap_or(&name)
                             .to_string();
 
+                        let capabilities = info
+                            .get_property_val_str("caps")
+                            .or_else(|| info.get_property_val_str("capabilities"))
+                            .map(|s| {
+                                s.split(',')
+                                    .map(|item| item.trim().to_string())
+                                    .filter(|item| !item.is_empty())
+                                    .collect::<Vec<String>>()
+                            })
+                            .unwrap_or_else(|| vec!["1080p".to_string()]);
+
+                        let max_resolution = info
+                            .get_property_val_str("res")
+                            .or_else(|| info.get_property_val_str("max_resolution"))
+                            .unwrap_or("1920x1080")
+                            .to_string();
+
+                        let max_fps = info
+                            .get_property_val_str("fps")
+                            .or_else(|| info.get_property_val_str("max_fps"))
+                            .and_then(|s| s.parse::<u32>().ok())
+                            .unwrap_or(60);
+
+                        let last_seen = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs())
+                            .unwrap_or(0);
+
                         let peer = PeerDevice {
                             id,
                             name,
                             ip,
                             port,
                             mode,
+                            last_seen,
+                            capabilities,
+                            max_resolution,
+                            max_fps,
                         };
 
                         if let Ok(mut peers) = discovered_peers.lock() {
@@ -318,6 +436,10 @@ impl DiscoveryService for MdnsDiscovery {
 
         if let Ok(mut info) = self.advertised_info.lock() {
             *info = None;
+        }
+
+        if let Ok(mut caps_guard) = self.advertised_caps.lock() {
+            *caps_guard = None;
         }
 
         if let Ok(mut cb) = self.browse_callback.lock() {

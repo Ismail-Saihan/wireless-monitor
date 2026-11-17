@@ -185,9 +185,10 @@ impl AppState {
             *r = normalized.clone();
         }
 
+        let caps = vec!["1080p".to_string(), "1440p".to_string()];
         let _ = self
             .discovery_service
-            .start_advertising(&self.hostname, self.port, &normalized);
+            .start_advertising_with_caps(&self.hostname, self.port, &normalized, &caps, "1920x1080", 60);
 
         Ok(normalized)
     }
@@ -411,8 +412,9 @@ impl AppState {
             .map(|r| r.clone())
             .unwrap_or_else(|_| "host".to_string());
 
+        let caps = vec!["1080p".to_string(), "1440p".to_string()];
         self.discovery_service
-            .start_advertising(&self.hostname, self.port, &role)
+            .start_advertising_with_caps(&self.hostname, self.port, &role, &caps, "1920x1080", 60)
             .map_err(|e| format!("Failed to advertise service: {}", e))?;
 
         self.discovery_service
@@ -425,6 +427,47 @@ impl AppState {
     /// Get all discovered peers on the local network
     pub fn get_discovered_peers(&self) -> Vec<PeerDevice> {
         self.discovery_service.get_discovered_peers()
+    }
+
+    /// Initiate reverse session initiation to use this device as a monitor for a target remote host
+    pub fn initiate_use_as_monitor(
+        &self,
+        peer_id: &str,
+        geometry: &ClientScreenGeometry,
+    ) -> Result<SessionStatus, String> {
+        if peer_id.trim().is_empty() {
+            return Err("peer_id cannot be empty".to_string());
+        }
+
+        geometry
+            .validate()
+            .map_err(|e| format!("Invalid receiver geometry: {}", e))?;
+
+        if let Ok(mut r) = self.app_role.lock() {
+            *r = "receiver".to_string();
+        }
+
+        let pin = {
+            let mut auth = self.pin_auth_manager.lock().map_err(|e| e.to_string())?;
+            auth.generate_pin(peer_id)
+        };
+
+        let session = SessionStatus {
+            session_id: format!("sess-monitor-{}", peer_id),
+            peer_id: peer_id.to_string(),
+            state: "pairing".to_string(),
+            monitor_id: None,
+            resolution: Some(format!("{}x{}", geometry.width, geometry.height)),
+            fps: Some(geometry.refresh_rate),
+            latency_ms: None,
+            pin: Some(pin),
+        };
+
+        if let Ok(mut sess) = self.active_session.lock() {
+            *sess = Some(session.clone());
+        }
+
+        Ok(session)
     }
 
     /// Initiate extend display workflow to a peer device
@@ -644,6 +687,15 @@ pub fn initiate_extend_display(
 }
 
 #[tauri::command]
+pub fn initiate_use_as_monitor(
+    state: tauri::State<'_, AppState>,
+    peer_id: String,
+    geometry: ClientScreenGeometry,
+) -> Result<SessionStatus, String> {
+    state.initiate_use_as_monitor(&peer_id, &geometry)
+}
+
+#[tauri::command]
 pub fn submit_pairing_pin(
     state: tauri::State<'_, AppState>,
     peer_id: String,
@@ -720,6 +772,7 @@ pub fn run() {
             start_discovery,
             get_discovered_peers,
             initiate_extend_display,
+            initiate_use_as_monitor,
             submit_pairing_pin,
             stop_session,
             install_driver,
