@@ -1,3 +1,4 @@
+import "./style.css";
 import { invoke } from "@tauri-apps/api/core";
 import { StatusHeader, SystemStatus, SessionStatus, Phase2Status } from "./components/StatusHeader";
 import { DeviceList, PeerDevice } from "./components/DeviceList";
@@ -47,6 +48,15 @@ export class App {
     try {
       this.os = await invoke<string>("get_operating_system");
       console.log("Operating System detected:", this.os);
+      const footerOs = document.getElementById("footer-os-name");
+      if (footerOs) {
+        footerOs.textContent =
+          this.os === "windows"
+            ? "Windows Display Engine (IddCx)"
+            : this.os === "linux"
+            ? "Linux Display Engine (Wayland)"
+            : this.os;
+      }
     } catch (err) {
       console.warn("Could not query OS, falling back to client platform:", err);
     }
@@ -104,6 +114,11 @@ export class App {
     const checkDriverBtn = document.getElementById("btn-install-driver");
     if (checkDriverBtn) {
       checkDriverBtn.onclick = () => this.handleInstallDriver();
+    }
+
+    const editSettingsBtn = document.getElementById("btn-edit-settings");
+    if (editSettingsBtn) {
+      editSettingsBtn.onclick = () => this.settingsDrawer.open();
     }
 
     // Initial system status, device metadata, discovery & Phase 2 status query
@@ -197,6 +212,12 @@ export class App {
     try {
       this.deviceInfo = await invoke<DeviceInfo>("get_device_info");
       console.log("Device Info loaded:", this.deviceInfo);
+      if (this.deviceInfo?.ip) {
+        const receiverIp = document.getElementById("receiver-ip-display");
+        if (receiverIp) {
+          receiverIp.textContent = `${this.deviceInfo.ip}:${this.deviceInfo.port || 5000}`;
+        }
+      }
     } catch (err) {
       console.error("Failed to query device info:", err);
     }

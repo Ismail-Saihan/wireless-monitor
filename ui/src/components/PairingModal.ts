@@ -73,7 +73,7 @@ export class PairingModal {
 
   private render(): void {
     this.container.className =
-      "fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden";
+      "fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden";
   }
 
   private renderModal(pinHint?: string | null): void {
@@ -81,149 +81,164 @@ export class PairingModal {
 
     const pinHintHtml = pinHint
       ? `
-        <div class="mb-3 p-2 bg-indigo-500/10 border border-indigo-500/20 rounded-lg text-center">
-          <span class="text-[11px] text-indigo-300">Generated Session PIN: </span>
-          <span class="font-mono font-bold text-sm text-indigo-400 tracking-wider">${pinHint}</span>
+        <div class="mb-4 p-4 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-center">
+          <div class="text-[11px] text-indigo-300 font-medium uppercase tracking-wider mb-2">Display Pairing PIN</div>
+          <div class="text-3xl font-mono font-bold tracking-[0.35em] text-indigo-400 select-all mb-1.5">
+            ${pinHint}
+          </div>
+          <p class="text-[11px] text-slate-400">
+            Enter this code on <strong class="text-white">${this.currentPeer.name}</strong> to establish display link.
+          </p>
         </div>
       `
       : "";
 
     this.container.innerHTML = `
-      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative animate-in fade-in zoom-in-95 duration-150">
+      <div class="bg-slate-900/95 border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl relative animate-in fade-in zoom-in-95 duration-200 backdrop-blur-2xl">
         <div class="flex items-center justify-between mb-4">
-          <div class="flex items-center space-x-2">
-            <div class="w-8 h-8 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-sm">
-              🔒
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-base border border-indigo-500/30">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
             </div>
             <div>
-              <h3 class="text-sm font-semibold text-white">Pairing Verification</h3>
-              <p class="text-[11px] text-slate-400">Connect to ${this.currentPeer.name}</p>
+              <h3 class="text-sm font-semibold text-white">Pairing Security</h3>
+              <p class="text-[11px] text-slate-400">Connecting to ${this.currentPeer.name}</p>
             </div>
           </div>
-          <button id="modal-btn-close" class="text-slate-400 hover:text-slate-200 text-lg leading-none p-1">
-            &times;
+          <button id="modal-btn-close" class="text-slate-400 hover:text-white p-1 rounded-lg transition hover:bg-white/5">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
           </button>
         </div>
-
-        <div id="modal-error-banner" class="hidden mb-3 p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs text-center font-medium"></div>
 
         ${pinHintHtml}
 
-        <div class="mb-4">
-          <label class="block text-xs font-medium text-slate-300 mb-1.5 text-center">
-            Enter 4-Digit Security PIN
-          </label>
-          <div class="flex justify-center">
-            <input
-              id="pin-input-field"
-              type="text"
-              inputmode="numeric"
-              pattern="[0-9]*"
-              maxlength="4"
-              placeholder="••••"
-              class="w-44 text-center tracking-[0.5em] font-mono text-2xl py-2 px-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
-            />
-          </div>
-          <p id="modal-attempts-counter" class="text-xs text-slate-400 text-center mt-2">
-            ${this.attemptsRemaining} attempts remaining
-          </p>
-        </div>
+        <div id="modal-error-banner" class="hidden mb-3 p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs"></div>
 
-        <div class="flex items-center space-x-2">
-          <button
-            id="modal-btn-cancel"
-            class="flex-1 px-3 py-2 text-xs bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-xl font-medium border border-slate-700/60 transition"
-          >
-            Cancel
-          </button>
-          <button
-            id="modal-btn-submit"
-            class="flex-1 px-3 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl font-medium transition shadow-lg shadow-indigo-600/30"
-          >
-            Pair & Connect
-          </button>
-        </div>
+        <form id="pairing-pin-form" class="space-y-4">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1.5 text-center">
+              Enter 4-Digit Security PIN
+            </label>
+            <input
+              type="text"
+              id="pin-input-field"
+              maxlength="4"
+              inputmode="numeric"
+              pattern="[0-9]{4}"
+              placeholder="••••"
+              autocomplete="off"
+              class="w-full text-center text-2xl tracking-[0.4em] font-mono py-2.5 px-4 rounded-xl bg-black/40 border border-white/10 text-white placeholder-slate-600 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition"
+              required
+            />
+            <div class="flex justify-between items-center mt-2 px-1">
+              <span id="modal-attempts-counter" class="text-[11px] text-slate-400">
+                ${this.attemptsRemaining} attempts remaining
+              </span>
+              <span class="text-[11px] text-slate-500">Auto-expires in 5m</span>
+            </div>
+          </div>
+
+          <div class="flex space-x-2.5 pt-2">
+            <button
+              type="button"
+              id="modal-btn-cancel"
+              class="flex-1 py-2 text-xs bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl border border-white/10 font-medium transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              id="modal-btn-submit"
+              class="flex-1 py-2 text-xs bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-medium transition shadow-md shadow-indigo-950/50 flex items-center justify-center space-x-1.5"
+            >
+              <span>Connect</span>
+            </button>
+          </div>
+        </form>
       </div>
     `;
 
-    // Hook events
-    const closeBtn = document.getElementById("modal-btn-close");
-    const cancelBtn = document.getElementById("modal-btn-cancel");
-    const submitBtn = document.getElementById("modal-btn-submit");
+    // Event listeners
+    const form = document.getElementById("pairing-pin-form");
     const input = document.getElementById("pin-input-field") as HTMLInputElement;
+    const cancelBtn = document.getElementById("modal-btn-cancel");
+    const closeBtn = document.getElementById("modal-btn-close");
 
-    const handleCancel = () => {
-      this.close();
-      this.onCancelCallback();
-    };
+    if (closeBtn) {
+      closeBtn.onclick = () => {
+        this.close();
+        this.onCancelCallback();
+      };
+    }
 
-    if (closeBtn) closeBtn.onclick = handleCancel;
-    if (cancelBtn) cancelBtn.onclick = handleCancel;
-
-    if (submitBtn) {
-      submitBtn.onclick = () => this.handleFormSubmit();
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        this.close();
+        this.onCancelCallback();
+      };
     }
 
     if (input) {
-      input.onkeydown = (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          this.handleFormSubmit();
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          handleCancel();
+      input.oninput = () => {
+        input.value = input.value.replace(/[^0-9]/g, "");
+        this.updateSubmitButtonState();
+      };
+    }
+
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        if (!this.currentPeer || this.isSubmitting) return;
+
+        const pinVal = input.value.trim();
+        if (pinVal.length !== 4) {
+          this.setError("PIN must be exactly 4 digits");
+          return;
+        }
+
+        this.isSubmitting = true;
+        this.updateSubmitButtonState();
+
+        try {
+          const success = await this.onSubmitCallback(this.currentPeer.id, pinVal);
+          if (success) {
+            this.close();
+          } else {
+            this.attemptsRemaining = Math.max(0, this.attemptsRemaining - 1);
+            this.setError("Invalid PIN, verification failed", this.attemptsRemaining);
+          }
+        } catch (err: any) {
+          this.attemptsRemaining = Math.max(0, this.attemptsRemaining - 1);
+          this.setError(`Pairing error: ${err?.message || err}`, this.attemptsRemaining);
+        } finally {
+          this.isSubmitting = false;
+          this.updateSubmitButtonState();
         }
       };
-
-      input.oninput = () => {
-        // Only allow numbers
-        input.value = input.value.replace(/[^0-9]/g, "");
-      };
-    }
-  }
-
-  private async handleFormSubmit(): Promise<void> {
-    if (!this.currentPeer || this.isSubmitting) return;
-
-    const input = document.getElementById("pin-input-field") as HTMLInputElement;
-    const pin = input ? input.value.trim() : "";
-
-    if (pin.length !== 4) {
-      this.setError("PIN must be exactly 4 numeric digits");
-      return;
-    }
-
-    this.isSubmitting = true;
-    this.updateSubmitButtonState();
-
-    try {
-      const ok = await this.onSubmitCallback(this.currentPeer.id, pin);
-      if (ok) {
-        this.close();
-      }
-    } catch (err: any) {
-      const msg = err ? (err.message || String(err)) : "Failed to verify PIN";
-      this.attemptsRemaining = Math.max(0, this.attemptsRemaining - 1);
-      this.setError(msg, this.attemptsRemaining);
     }
   }
 
   private updateSubmitButtonState(): void {
-    const submitBtn = document.getElementById("modal-btn-submit") as HTMLButtonElement;
-    if (!submitBtn) return;
+    const btn = document.getElementById("modal-btn-submit") as HTMLButtonElement | null;
+    const input = document.getElementById("pin-input-field") as HTMLInputElement | null;
+    if (!btn || !input) return;
 
     if (this.isSubmitting) {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <svg class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      btn.disabled = true;
+      btn.innerHTML = `
+        <svg class="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
           <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
         </svg>
         Pairing...
       `;
     } else {
-      submitBtn.disabled = this.attemptsRemaining <= 0;
-      submitBtn.textContent = "Pair & Connect";
+      btn.disabled = input.value.length !== 4;
+      btn.textContent = "Connect";
     }
   }
 }

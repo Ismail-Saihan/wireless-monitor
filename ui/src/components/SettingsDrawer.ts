@@ -47,6 +47,7 @@ export class SettingsDrawer {
         this.currentSettings = backendSettings;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(backendSettings));
         this.updateFormFields();
+        this.updateDashboardQuickLabels();
         return backendSettings;
       }
     } catch (err) {
@@ -59,6 +60,7 @@ export class SettingsDrawer {
         const parsed = JSON.parse(stored) as StreamSettings;
         this.currentSettings = parsed;
         this.updateFormFields();
+        this.updateDashboardQuickLabels();
         return parsed;
       }
     } catch (e) {
@@ -67,6 +69,7 @@ export class SettingsDrawer {
 
     this.currentSettings = { ...DEFAULT_STREAM_SETTINGS };
     this.updateFormFields();
+    this.updateDashboardQuickLabels();
     return this.currentSettings;
   }
 
@@ -100,9 +103,6 @@ export class SettingsDrawer {
     if (successEl) {
       successEl.textContent = msg;
       successEl.classList.remove("hidden");
-      setTimeout(() => {
-        successEl.classList.add("hidden");
-      }, 3000);
     }
   }
 
@@ -116,358 +116,332 @@ export class SettingsDrawer {
     }
   }
 
-  private render(): void {
-    this.container.className = "fixed inset-0 z-50 overflow-hidden hidden";
+  private updateDashboardQuickLabels(): void {
+    const resEl = document.getElementById("quick-res-label");
+    const fpsEl = document.getElementById("quick-fps-label");
+    const brEl = document.getElementById("quick-bitrate-label");
 
-    this.container.innerHTML = `
-      <!-- Backdrop -->
-      <div id="settings-backdrop" class="fixed inset-0 bg-slate-950/70 backdrop-blur-sm transition-opacity"></div>
-
-      <!-- Slide-out Drawer Panel -->
-      <div class="fixed inset-y-0 right-0 max-w-md w-full bg-slate-900 border-l border-slate-800 p-6 flex flex-col justify-between shadow-2xl z-10 overflow-y-auto">
-        <div class="space-y-6">
-          <!-- Header -->
-          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
-            <div class="flex items-center space-x-2.5">
-              <div class="w-8 h-8 rounded-xl bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-sm border border-indigo-500/20">
-                ⚙️
-              </div>
-              <div>
-                <h2 class="text-sm font-semibold text-white">Stream & Display Settings</h2>
-                <p class="text-xs text-slate-400">Configure resolution, framerate, and network bitrate</p>
-              </div>
-            </div>
-            <button id="settings-btn-close" class="text-slate-400 hover:text-slate-200 text-xl leading-none p-1 transition">
-              &times;
-            </button>
-          </div>
-
-          <!-- Notification Banners -->
-          <div id="settings-error-banner" class="hidden p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium"></div>
-          <div id="settings-success-banner" class="hidden p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-medium"></div>
-
-          <!-- Settings Form -->
-          <div class="space-y-5">
-            <!-- Resolution Mode -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Resolution Mode
-              </label>
-              <div class="space-y-2" id="resolution-options-group">
-                <label class="flex items-start space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="resolution_mode" value="auto" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
-                  <div>
-                    <div class="text-xs font-medium text-white">Auto (Match Client Display)</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">Dynamically queries and adopts the connected client's native screen dimensions.</div>
-                  </div>
-                </label>
-
-                <label class="flex items-start space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="resolution_mode" value="1080p" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
-                  <div>
-                    <div class="text-xs font-medium text-white">1080p Full HD (1920 × 1080)</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">Standard 16:9 widescreen streaming. Ideal for standard monitors and laptops.</div>
-                  </div>
-                </label>
-
-                <label class="flex items-start space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="resolution_mode" value="1440p" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
-                  <div>
-                    <div class="text-xs font-medium text-white">1440p 2K QHD (2560 × 1440)</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">Crisp high-density resolution for modern monitors and tablets.</div>
-                  </div>
-                </label>
-
-                <label class="flex items-start space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="resolution_mode" value="4k" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
-                  <div>
-                    <div class="text-xs font-medium text-white">4K Ultra HD (3840 × 2160)</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">Maximum fidelity. Requires robust Wi-Fi 6 or Gigabit LAN bandwidth.</div>
-                  </div>
-                </label>
-
-                <label class="flex items-start space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="resolution_mode" value="custom" class="mt-0.5 text-indigo-600 focus:ring-indigo-500" />
-                  <div class="flex-1">
-                    <div class="text-xs font-medium text-white">Custom Dimensions</div>
-                    <div class="text-[11px] text-slate-400 mt-0.5">Specify explicit pixel width and height.</div>
-                    
-                    <!-- Custom Dimensions Input Row (shown when custom is selected) -->
-                    <div id="custom-resolution-fields" class="hidden mt-3 pt-3 border-t border-slate-800 grid grid-cols-2 gap-3">
-                      <div>
-                        <label class="block text-[11px] text-slate-400 mb-1">Width (px)</label>
-                        <input
-                          id="settings-custom-width"
-                          type="number"
-                          min="640"
-                          max="7680"
-                          step="2"
-                          placeholder="1920"
-                          class="w-full text-xs font-mono px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                      <div>
-                        <label class="block text-[11px] text-slate-400 mb-1">Height (px)</label>
-                        <input
-                          id="settings-custom-height"
-                          type="number"
-                          min="480"
-                          max="4320"
-                          step="2"
-                          placeholder="1080"
-                          class="w-full text-xs font-mono px-3 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <!-- Framerate -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Target Framerate
-              </label>
-              <div class="grid grid-cols-2 gap-3">
-                <label class="flex items-center space-x-2.5 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="framerate" value="60" class="text-indigo-600 focus:ring-indigo-500" />
-                  <div>
-                    <div class="text-xs font-medium text-white">60 FPS</div>
-                    <div class="text-[10px] text-emerald-400 mt-0.5">Fluid Motion (Default)</div>
-                  </div>
-                </label>
-
-                <label class="flex items-center space-x-2.5 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="framerate" value="30" class="text-indigo-600 focus:ring-indigo-500" />
-                  <div>
-                    <div class="text-xs font-medium text-white">30 FPS</div>
-                    <div class="text-[10px] text-slate-400 mt-0.5">Eco / Low Bandwidth</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            <!-- Bitrate Cap -->
-            <div>
-              <label class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">
-                Video Bitrate Cap
-              </label>
-              <div class="space-y-2">
-                <label class="flex items-center space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="bitrate_kbps" value="10000" class="text-indigo-600 focus:ring-indigo-500" />
-                  <div class="flex-1 flex items-center justify-between">
-                    <div>
-                      <div class="text-xs font-medium text-white">10 Mbps</div>
-                      <div class="text-[11px] text-slate-400">Wi-Fi Eco (Saves power & battery)</div>
-                    </div>
-                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">10,000 kbps</span>
-                  </div>
-                </label>
-
-                <label class="flex items-center space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="bitrate_kbps" value="20000" class="text-indigo-600 focus:ring-indigo-500" />
-                  <div class="flex-1 flex items-center justify-between">
-                    <div>
-                      <div class="text-xs font-medium text-white">20 Mbps</div>
-                      <div class="text-[11px] text-indigo-300">Balanced (Recommended)</div>
-                    </div>
-                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-mono">20,000 kbps</span>
-                  </div>
-                </label>
-
-                <label class="flex items-center space-x-3 p-3 bg-slate-950/60 rounded-xl border border-slate-800 cursor-pointer hover:border-slate-700 transition">
-                  <input type="radio" name="bitrate_kbps" value="40000" class="text-indigo-600 focus:ring-indigo-500" />
-                  <div class="flex-1 flex items-center justify-between">
-                    <div>
-                      <div class="text-xs font-medium text-white">40 Mbps</div>
-                      <div class="text-[11px] text-emerald-400">High Quality LAN (Gigabit/5GHz)</div>
-                    </div>
-                    <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono">40,000 kbps</span>
-                  </div>
-                </label>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Footer Actions -->
-        <div class="pt-6 border-t border-slate-800 flex items-center space-x-3">
-          <button id="settings-btn-reset" class="px-3 py-2 text-xs text-slate-400 hover:text-slate-200 transition font-medium">
-            Reset Defaults
-          </button>
-          <div class="flex-1 flex items-center justify-end space-x-2">
-            <button id="settings-btn-cancel" class="px-3.5 py-2 text-xs bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-xl font-medium border border-slate-700/60 transition">
-              Cancel
-            </button>
-            <button id="settings-btn-save" class="px-4 py-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium transition shadow-lg shadow-indigo-600/30 flex items-center space-x-1.5">
-              <span>Save Settings</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    // Hook listeners
-    const backdrop = document.getElementById("settings-backdrop");
-    const closeBtn = document.getElementById("settings-btn-close");
-    const cancelBtn = document.getElementById("settings-btn-cancel");
-    const resetBtn = document.getElementById("settings-btn-reset");
-    const saveBtn = document.getElementById("settings-btn-save");
-
-    if (backdrop) backdrop.onclick = () => this.close();
-    if (closeBtn) closeBtn.onclick = () => this.close();
-    if (cancelBtn) cancelBtn.onclick = () => this.close();
-
-    if (resetBtn) {
-      resetBtn.onclick = () => {
-        this.currentSettings = { ...DEFAULT_STREAM_SETTINGS };
-        this.updateFormFields();
-      };
+    if (resEl) {
+      const mode = this.currentSettings.resolution_mode;
+      resEl.textContent = mode === "auto" ? "Auto" : mode.toUpperCase();
     }
-
-    if (saveBtn) {
-      saveBtn.onclick = () => this.handleSave();
+    if (fpsEl) {
+      fpsEl.textContent = `${this.currentSettings.framerate} FPS`;
     }
-
-    // Toggle custom fields visibility on resolution mode radio change
-    const radios = this.container.querySelectorAll<HTMLInputElement>('input[name="resolution_mode"]');
-    radios.forEach((r) => {
-      r.onchange = () => {
-        this.toggleCustomFields(r.value === "custom");
-      };
-    });
-  }
-
-  private toggleCustomFields(show: boolean): void {
-    const customFields = document.getElementById("custom-resolution-fields");
-    if (customFields) {
-      if (show) {
-        customFields.classList.remove("hidden");
-      } else {
-        customFields.classList.add("hidden");
-      }
+    if (brEl) {
+      const mbps = Math.round(this.currentSettings.bitrate_kbps / 1000);
+      brEl.textContent = `${mbps} Mbps`;
     }
   }
 
   private updateFormFields(): void {
-    // 1. Resolution Mode
-    const resRadios = this.container.querySelectorAll<HTMLInputElement>('input[name="resolution_mode"]');
-    resRadios.forEach((r) => {
-      r.checked = r.value === this.currentSettings.resolution_mode;
-    });
+    const resSelect = document.getElementById("settings-resolution-mode") as HTMLSelectElement | null;
+    const customContainer = document.getElementById("settings-custom-res-container");
+    const customWidth = document.getElementById("settings-custom-width") as HTMLInputElement | null;
+    const customHeight = document.getElementById("settings-custom-height") as HTMLInputElement | null;
+    const bitrateRange = document.getElementById("settings-bitrate-slider") as HTMLInputElement | null;
+    const bitrateDisplay = document.getElementById("settings-bitrate-display");
 
-    const isCustom = this.currentSettings.resolution_mode === "custom";
-    this.toggleCustomFields(isCustom);
-
-    const widthInput = document.getElementById("settings-custom-width") as HTMLInputElement;
-    const heightInput = document.getElementById("settings-custom-height") as HTMLInputElement;
-    if (widthInput && this.currentSettings.custom_width) {
-      widthInput.value = this.currentSettings.custom_width.toString();
-    }
-    if (heightInput && this.currentSettings.custom_height) {
-      heightInput.value = this.currentSettings.custom_height.toString();
+    if (resSelect) {
+      resSelect.value = this.currentSettings.resolution_mode;
     }
 
-    // 2. Framerate
-    const fpsRadios = this.container.querySelectorAll<HTMLInputElement>('input[name="framerate"]');
-    fpsRadios.forEach((r) => {
-      r.checked = parseInt(r.value, 10) === this.currentSettings.framerate;
-    });
+    if (customContainer) {
+      if (this.currentSettings.resolution_mode === "custom") {
+        customContainer.classList.remove("hidden");
+      } else {
+        customContainer.classList.add("hidden");
+      }
+    }
 
-    // 3. Bitrate
-    const bitrateRadios = this.container.querySelectorAll<HTMLInputElement>('input[name="bitrate_kbps"]');
-    bitrateRadios.forEach((r) => {
-      r.checked = parseInt(r.value, 10) === this.currentSettings.bitrate_kbps;
-    });
+    if (customWidth) {
+      customWidth.value = this.currentSettings.custom_width ? String(this.currentSettings.custom_width) : "1920";
+    }
+    if (customHeight) {
+      customHeight.value = this.currentSettings.custom_height ? String(this.currentSettings.custom_height) : "1080";
+    }
+
+    // Framerate radio buttons
+    const fpsRadio = document.querySelector(
+      `input[name="settings-framerate"][value="${this.currentSettings.framerate}"]`
+    ) as HTMLInputElement | null;
+    if (fpsRadio) {
+      fpsRadio.checked = true;
+    }
+
+    // Bitrate
+    if (bitrateRange) {
+      bitrateRange.value = String(this.currentSettings.bitrate_kbps);
+    }
+    if (bitrateDisplay) {
+      const mbps = (this.currentSettings.bitrate_kbps / 1000).toFixed(1);
+      bitrateDisplay.textContent = `${mbps} Mbps (${this.currentSettings.bitrate_kbps.toLocaleString()} kbps)`;
+    }
+
+    this.updateDashboardQuickLabels();
   }
 
-  private async handleSave(): Promise<void> {
-    if (this.isSaving) return;
+  private render(): void {
+    this.container.className =
+      "fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end hidden transition-opacity duration-200";
 
-    // Read selected resolution mode
-    const selectedRes = this.container.querySelector<HTMLInputElement>('input[name="resolution_mode"]:checked');
-    const resolutionMode = selectedRes ? selectedRes.value : "auto";
+    this.container.innerHTML = `
+      <div class="w-full max-w-md bg-slate-900 border-l border-white/10 h-full p-6 flex flex-col shadow-2xl relative overflow-y-auto">
+        <!-- Drawer Header -->
+        <div class="flex items-center justify-between pb-4 border-b border-white/10 mb-5">
+          <div class="flex items-center space-x-3">
+            <div class="w-9 h-9 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-violet-400">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-base font-semibold text-white">Stream & Display Settings</h2>
+              <p class="text-xs text-slate-400">Low-latency video encoding preferences</p>
+            </div>
+          </div>
+          <button id="settings-btn-close" class="text-slate-400 hover:text-white p-1 rounded-lg transition hover:bg-white/5">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
 
-    let customWidth: number | null = null;
-    let customHeight: number | null = null;
+        <!-- Notification Banners -->
+        <div id="settings-success-banner" class="hidden mb-4 p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-xl flex items-center space-x-2">
+          <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Settings applied successfully</span>
+        </div>
+        <div id="settings-error-banner" class="hidden mb-4 p-3 bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs rounded-xl"></div>
 
-    if (resolutionMode === "custom") {
-      const widthInput = document.getElementById("settings-custom-width") as HTMLInputElement;
-      const heightInput = document.getElementById("settings-custom-height") as HTMLInputElement;
+        <!-- Form Body -->
+        <form id="stream-settings-form" class="space-y-5 flex-1">
+          <!-- Resolution Mode -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-medium text-slate-300">Display Resolution Mode</label>
+            <select
+              id="settings-resolution-mode"
+              class="w-full px-3.5 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-indigo-500 transition"
+            >
+              <option value="auto">Auto (Match Receiver Screen Geometry)</option>
+              <option value="1080p">1080p Full HD (1920 × 1080)</option>
+              <option value="1440p">1440p 2K QHD (2560 × 1440)</option>
+              <option value="4k">4K Ultra HD (3840 × 2160)</option>
+              <option value="custom">Custom Dimensions...</option>
+            </select>
+          </div>
 
-      const w = widthInput ? parseInt(widthInput.value, 10) : NaN;
-      const h = heightInput ? parseInt(heightInput.value, 10) : NaN;
+          <!-- Custom Resolution Inputs -->
+          <div id="settings-custom-res-container" class="hidden p-3.5 bg-black/30 rounded-xl border border-white/5 space-y-2">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Width (px)</label>
+                <input
+                  type="number"
+                  id="settings-custom-width"
+                  min="320"
+                  max="7680"
+                  class="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white"
+                />
+              </div>
+              <div>
+                <label class="block text-[11px] text-slate-400 mb-1">Height (px)</label>
+                <input
+                  type="number"
+                  id="settings-custom-height"
+                  min="240"
+                  max="4320"
+                  class="w-full px-3 py-1.5 rounded-lg bg-black/40 border border-white/10 text-xs text-white"
+                />
+              </div>
+            </div>
+          </div>
 
-      if (isNaN(w) || isNaN(h)) {
-        this.showError("Custom width and height are required");
-        return;
+          <!-- Framerate -->
+          <div class="space-y-2">
+            <label class="block text-xs font-medium text-slate-300">Maximum Framerate (FPS)</label>
+            <div class="grid grid-cols-3 gap-2">
+              <label class="flex items-center justify-center p-2.5 rounded-xl border border-white/10 bg-black/30 cursor-pointer has-[:checked]:bg-indigo-600 has-[:checked]:border-indigo-500 has-[:checked]:text-white text-slate-300 text-xs font-medium transition">
+                <input type="radio" name="settings-framerate" value="30" class="sr-only" />
+                <span>30 FPS</span>
+              </label>
+              <label class="flex items-center justify-center p-2.5 rounded-xl border border-white/10 bg-black/30 cursor-pointer has-[:checked]:bg-indigo-600 has-[:checked]:border-indigo-500 has-[:checked]:text-white text-slate-300 text-xs font-medium transition">
+                <input type="radio" name="settings-framerate" value="60" class="sr-only" checked />
+                <span>60 FPS</span>
+              </label>
+              <label class="flex items-center justify-center p-2.5 rounded-xl border border-white/10 bg-black/30 cursor-pointer has-[:checked]:bg-indigo-600 has-[:checked]:border-indigo-500 has-[:checked]:text-white text-slate-300 text-xs font-medium transition">
+                <input type="radio" name="settings-framerate" value="120" class="sr-only" />
+                <span>120 FPS</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Video Bitrate -->
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <label class="text-xs font-medium text-slate-300">Target Video Bitrate</label>
+              <span id="settings-bitrate-display" class="text-xs font-mono font-medium text-indigo-400">
+                20.0 Mbps (20,000 kbps)
+              </span>
+            </div>
+            <input
+              type="range"
+              id="settings-bitrate-slider"
+              min="2000"
+              max="50000"
+              step="1000"
+              value="20000"
+              class="w-full accent-indigo-500 cursor-pointer"
+            />
+            <div class="flex justify-between text-[10px] text-slate-500 font-mono">
+              <span>2 Mbps (Low Bandwidth)</span>
+              <span>20 Mbps (Default)</span>
+              <span>50 Mbps (Crisp Retina)</span>
+            </div>
+          </div>
+
+          <!-- Hardware Acceleration Note -->
+          <div class="p-3 rounded-xl bg-black/30 border border-white/5 space-y-1 text-xs text-slate-400">
+            <div class="font-medium text-slate-300">Hardware Acceleration</div>
+            <p class="text-[11px] leading-relaxed">
+              Auto-detects Microsoft Media Foundation MFT on Windows and VA-API on Linux for sub-16ms encoding.
+            </p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div class="pt-4 flex space-x-3">
+            <button
+              type="button"
+              id="settings-btn-cancel"
+              class="flex-1 py-2.5 text-xs bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl border border-white/10 font-medium transition"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              id="settings-btn-save"
+              class="flex-1 py-2.5 text-xs bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-xl font-medium transition shadow-md shadow-indigo-950/50 flex items-center justify-center space-x-1.5"
+            >
+              <span>Save Settings</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    `;
+
+    this.attachEventListeners();
+  }
+
+  private attachEventListeners(): void {
+    const closeBtn = document.getElementById("settings-btn-close");
+    const cancelBtn = document.getElementById("settings-btn-cancel");
+    const form = document.getElementById("stream-settings-form");
+    const resSelect = document.getElementById("settings-resolution-mode") as HTMLSelectElement | null;
+    const customContainer = document.getElementById("settings-custom-res-container");
+    const bitrateRange = document.getElementById("settings-bitrate-slider") as HTMLInputElement | null;
+    const bitrateDisplay = document.getElementById("settings-bitrate-display");
+
+    if (closeBtn) closeBtn.onclick = () => this.close();
+    if (cancelBtn) cancelBtn.onclick = () => this.close();
+
+    // Close on clicking backdrop
+    this.container.onclick = (e) => {
+      if (e.target === this.container) {
+        this.close();
       }
-      if (w % 2 !== 0 || h % 2 !== 0) {
-        this.showError("Custom width and height must be even numbers");
-        return;
-      }
-      if (w < 640 || w > 7680) {
-        this.showError("Custom width must be between 640 and 7680");
-        return;
-      }
-      if (h < 480 || h > 4320) {
-        this.showError("Custom height must be between 480 and 4320");
-        return;
-      }
-      customWidth = w;
-      customHeight = h;
-    }
-
-    // Read selected framerate
-    const selectedFps = this.container.querySelector<HTMLInputElement>('input[name="framerate"]:checked');
-    const framerate = selectedFps ? parseInt(selectedFps.value, 10) : 60;
-
-    // Read selected bitrate
-    const selectedBitrate = this.container.querySelector<HTMLInputElement>('input[name="bitrate_kbps"]:checked');
-    const bitrateKbps = selectedBitrate ? parseInt(selectedBitrate.value, 10) : 20000;
-
-    const newSettings: StreamSettings = {
-      resolution_mode: resolutionMode,
-      custom_width: customWidth,
-      custom_height: customHeight,
-      framerate,
-      bitrate_kbps: bitrateKbps,
     };
 
-    this.isSaving = true;
-    const saveBtn = document.getElementById("settings-btn-save");
-    if (saveBtn) {
-      saveBtn.innerHTML = `
-        <svg class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-        </svg>
-        Saving...
-      `;
+    if (resSelect && customContainer) {
+      resSelect.onchange = () => {
+        if (resSelect.value === "custom") {
+          customContainer.classList.remove("hidden");
+        } else {
+          customContainer.classList.add("hidden");
+        }
+      };
     }
 
-    try {
-      if (this.onSaveCallback) {
-        await this.onSaveCallback(newSettings);
-      } else {
-        await invoke("set_stream_settings", { settings: newSettings });
-      }
+    if (bitrateRange && bitrateDisplay) {
+      bitrateRange.oninput = () => {
+        const val = parseInt(bitrateRange.value, 10);
+        const mbps = (val / 1000).toFixed(1);
+        bitrateDisplay.textContent = `${mbps} Mbps (${val.toLocaleString()} kbps)`;
+      };
+    }
 
-      this.currentSettings = newSettings;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-      this.showSuccess("Settings saved successfully!");
-      setTimeout(() => {
-        this.close();
-      }, 700);
-    } catch (err: any) {
-      const errMsg = typeof err === "string" ? err : err.message || "Failed to save settings";
-      this.showError(errMsg);
-    } finally {
-      this.isSaving = false;
-      if (saveBtn) {
-        saveBtn.innerHTML = "<span>Save Settings</span>";
-      }
+    if (form) {
+      form.onsubmit = async (e) => {
+        e.preventDefault();
+        if (this.isSaving) return;
+
+        const resMode = resSelect ? resSelect.value : "auto";
+        const fpsRadio = document.querySelector('input[name="settings-framerate"]:checked') as HTMLInputElement | null;
+        const fps = fpsRadio ? parseInt(fpsRadio.value, 10) : 60;
+        const bitrate = bitrateRange ? parseInt(bitrateRange.value, 10) : 20000;
+
+        let customWidth: number | null = null;
+        let customHeight: number | null = null;
+
+        if (resMode === "custom") {
+          const wInput = document.getElementById("settings-custom-width") as HTMLInputElement | null;
+          const hInput = document.getElementById("settings-custom-height") as HTMLInputElement | null;
+          customWidth = wInput ? parseInt(wInput.value, 10) : 1920;
+          customHeight = hInput ? parseInt(hInput.value, 10) : 1080;
+
+          if (isNaN(customWidth) || customWidth < 320 || customWidth > 7680) {
+            this.showError("Custom width must be between 320 and 7680 px");
+            return;
+          }
+          if (isNaN(customHeight) || customHeight < 240 || customHeight > 4320) {
+            this.showError("Custom height must be between 240 and 4320 px");
+            return;
+          }
+        }
+
+        const newSettings: StreamSettings = {
+          resolution_mode: resMode,
+          custom_width: customWidth,
+          custom_height: customHeight,
+          framerate: fps,
+          bitrate_kbps: bitrate,
+        };
+
+        this.isSaving = true;
+        const saveBtn = document.getElementById("settings-btn-save") as HTMLButtonElement | null;
+        if (saveBtn) {
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = `
+            <svg class="animate-spin -ml-1 mr-1.5 h-3 w-3 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+            </svg>
+            Saving...
+          `;
+        }
+
+        try {
+          await invoke("set_stream_settings", { settings: newSettings });
+          if (this.onSaveCallback) {
+            await this.onSaveCallback(newSettings);
+          }
+          this.currentSettings = newSettings;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
+          this.updateDashboardQuickLabels();
+          this.showSuccess("Settings applied successfully!");
+          setTimeout(() => this.close(), 700);
+        } catch (err: any) {
+          this.showError(`Failed to save settings: ${err?.message || err}`);
+        } finally {
+          this.isSaving = false;
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = "Save Settings";
+          }
+        }
+      };
     }
   }
 }

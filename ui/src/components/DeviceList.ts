@@ -46,36 +46,44 @@ export class DeviceList {
     if (btn) {
       if (loading) {
         btn.innerHTML = `
-          <svg class="animate-spin -ml-1 mr-1.5 h-3 w-3 text-indigo-400 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <svg class="animate-spin -ml-1 mr-1.5 h-3.5 w-3.5 text-indigo-400 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
             <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
             <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
           </svg>
           Scanning...
         `;
       } else {
-        btn.textContent = "Scan LAN";
+        btn.innerHTML = `
+          <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-400 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Scan LAN
+        `;
       }
     }
   }
 
   private render(): void {
     this.container.innerHTML = `
-      <div class="flex items-center justify-between mb-3">
+      <div class="flex items-center justify-between mb-4">
         <div>
-          <h2 class="text-sm font-semibold text-emerald-400 flex items-center space-x-2">
-            <span>Nearby Devices</span>
-            <span class="text-[11px] px-2 py-0.2 bg-slate-800 text-slate-400 rounded-full font-mono font-normal">
+          <h2 class="text-sm font-semibold text-white flex items-center space-x-2">
+            <span>Nearby Displays & Devices</span>
+            <span class="text-[11px] px-2 py-0.5 bg-white/10 text-indigo-300 rounded-full font-mono font-medium">
               ${this.currentPeers.length}
             </span>
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5">mDNS devices discovered on local subnet</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Discovered via zero-config local mDNS</p>
         </div>
-        <button id="btn-refresh-peers" class="text-xs px-2.5 py-1 bg-slate-850 hover:bg-slate-700/80 text-indigo-400 hover:text-indigo-300 font-medium rounded-lg border border-slate-700/50 transition">
-          ${this.isLoading ? "Scanning..." : "Scan LAN"}
+        <button id="btn-refresh-peers" class="text-xs px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white font-medium rounded-xl border border-white/10 transition-all flex items-center active:scale-95 shadow-sm">
+          <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-400 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Scan LAN
         </button>
       </div>
 
-      <div id="peers-inner-list" class="space-y-2.5 mt-3"></div>
+      <div id="peers-inner-list" class="space-y-3"></div>
     `;
 
     const refreshBtn = document.getElementById("btn-refresh-peers");
@@ -88,14 +96,25 @@ export class DeviceList {
 
     if (this.currentPeers.length === 0) {
       listEl.innerHTML = `
-        <div class="text-center py-10 px-4 border border-dashed border-slate-800 rounded-xl bg-slate-900/30">
-          <div class="w-8 h-8 mx-auto mb-2 rounded-full bg-slate-800 flex items-center justify-center text-slate-500">
-            <svg class="w-4 h-4 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a10 10 0 0114.142 0M1.393 9.393a15 15 0 0121.214 0" />
-            </svg>
+        <div class="text-center py-16 px-6 border border-dashed border-white/10 rounded-2xl bg-black/20 flex flex-col items-center justify-center relative overflow-hidden">
+          <!-- Animated Radar Scanner -->
+          <div class="relative w-20 h-20 mb-4 flex items-center justify-center">
+            <div class="absolute inset-0 rounded-full bg-indigo-500/20 animate-radar"></div>
+            <div class="absolute inset-2 rounded-full bg-indigo-500/30 animate-ping"></div>
+            <div class="relative w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600/40 to-violet-500/40 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/20">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a10 10 0 0114.142 0M1.393 9.393a15 15 0 0121.214 0" />
+              </svg>
+            </div>
           </div>
-          <p class="text-xs text-slate-400 font-medium">Scanning for devices over mDNS...</p>
-          <p class="text-[11px] text-slate-500 mt-1">Make sure devices are connected to the same Wi-Fi / LAN network.</p>
+          <h3 class="text-sm font-semibold text-slate-200">Searching for Nearby Devices</h3>
+          <p class="text-xs text-slate-400 mt-1 max-w-sm">
+            Launch Wireless Monitor on another laptop, PC, or tablet connected to the same Wi-Fi network.
+          </p>
+          <div class="mt-4 flex items-center space-x-2 text-[11px] text-slate-500 font-mono">
+            <span>mDNS Service:</span>
+            <span class="text-indigo-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">_wireless-monitor._tcp</span>
+          </div>
         </div>
       `;
       return;
@@ -104,13 +123,13 @@ export class DeviceList {
     this.currentPeers.forEach((peer) => {
       const card = document.createElement("div");
       card.className =
-        "p-3.5 bg-slate-900/60 hover:bg-slate-900/90 rounded-xl border border-slate-700/50 transition shadow-sm space-y-2.5";
+        "p-4 rounded-xl bg-slate-900/70 hover:bg-slate-900/95 border border-white/[0.08] hover:border-indigo-500/40 transition-all duration-200 shadow-md space-y-3";
 
       const isMonitor = peer.mode === "monitor";
       const badgeClass = isMonitor
-        ? "bg-indigo-500/10 text-indigo-400 border-indigo-500/20"
-        : "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
-      const modeLabel = isMonitor ? "Monitor" : "Host";
+        ? "bg-indigo-500/15 text-indigo-300 border-indigo-500/30"
+        : "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+      const modeLabel = isMonitor ? "Monitor Ready" : "Host System";
 
       // Collect capability tags
       const badges: string[] = [];
@@ -129,26 +148,28 @@ export class DeviceList {
       }
 
       const badgesHtml = badges.length > 0
-        ? `<div class="flex flex-wrap gap-1.5 pt-0.5">
+        ? `<div class="flex flex-wrap gap-1.5 pt-1">
             ${badges
               .map(
                 (badge) =>
-                  `<span class="text-[10px] px-2 py-0.5 rounded-md bg-slate-800/80 text-indigo-300 border border-indigo-500/20 font-mono">${badge}</span>`
+                  `<span class="text-[10px] px-2 py-0.5 rounded-md bg-black/40 text-indigo-300 border border-white/5 font-mono">${badge}</span>`
               )
               .join("")}
           </div>`
         : "";
 
       card.innerHTML = `
-        <div class="flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <div class="w-8 h-8 rounded-lg ${isMonitor ? "bg-indigo-600/20 text-indigo-400" : "bg-emerald-600/20 text-emerald-400"} flex items-center justify-center text-sm font-semibold border border-slate-700/60">
-              ${isMonitor ? "🖥️" : "💻"}
+        <div class="flex items-center justify-between gap-3">
+          <div class="flex items-center space-x-3.5">
+            <div class="w-10 h-10 rounded-xl ${isMonitor ? "bg-indigo-500/15 border-indigo-500/30 text-indigo-400" : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"} border flex items-center justify-center shrink-0">
+              ${isMonitor
+                ? `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`
+                : `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>`}
             </div>
             <div>
               <div class="flex items-center space-x-2">
                 <span class="text-xs font-semibold text-white tracking-wide">${peer.name}</span>
-                <span class="text-[10px] px-1.5 py-0.2 rounded-full border ${badgeClass}">
+                <span class="text-[10px] px-2 py-0.5 rounded-full border font-medium ${badgeClass}">
                   ${modeLabel}
                 </span>
               </div>
@@ -157,11 +178,14 @@ export class DeviceList {
               </div>
             </div>
           </div>
-          <div class="flex items-center space-x-2">
-            <button data-action="extend" class="px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-sm">
-              Extend Display
+          <div class="flex items-center space-x-2 shrink-0">
+            <button data-action="extend" class="px-3.5 py-1.5 text-xs bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white rounded-lg font-medium transition shadow-md shadow-indigo-950/50 active:scale-95 flex items-center space-x-1">
+              <span>Extend Screen</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
+              </svg>
             </button>
-            <button data-action="monitor" class="px-2.5 py-1.5 text-xs bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 font-medium transition">
+            <button data-action="monitor" class="px-3 py-1.5 text-xs bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-lg border border-white/10 font-medium transition active:scale-95">
               Use as Monitor
             </button>
           </div>

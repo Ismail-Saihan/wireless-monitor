@@ -59,48 +59,54 @@ export class StatusHeader {
 
   private renderInitial(): void {
     this.container.innerHTML = `
-      <div class="flex items-center space-x-3">
-        <div class="w-9 h-9 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30 tracking-tight">
-          WM
+      <div class="flex items-center space-x-3.5">
+        <!-- Logo Icon -->
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/25 border border-white/10 shrink-0">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+          </svg>
         </div>
         <div>
           <div class="flex items-center space-x-2">
-            <h1 class="text-base font-semibold tracking-wide text-white">Wireless Monitor</h1>
+            <h1 class="text-sm font-semibold tracking-tight text-white">Wireless Monitor</h1>
             <span id="header-lan-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              LAN Ready
+              LAN Active
             </span>
-            <span id="header-os-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20">
-              Detecting OS
+            <span id="header-os-badge" class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 font-mono">
+              System Ready
             </span>
           </div>
-          <p id="header-device-info" class="text-xs text-slate-400 mt-0.5">Detecting host system...</p>
+          <p id="header-device-info" class="text-[11px] text-slate-400 mt-0.5">Initializing display engine...</p>
         </div>
       </div>
+
       <div class="flex items-center space-x-3">
-        <!-- Role Switcher Segmented Control -->
-        <div id="header-role-switcher" class="flex items-center bg-slate-800/90 border border-slate-700/80 p-0.5 rounded-xl text-xs font-medium">
-          <button id="btn-role-host" class="px-3 py-1 rounded-lg transition bg-indigo-600 text-white shadow-sm">
-            Host
+        <!-- Modern Role Switcher Segmented Control -->
+        <div id="header-role-switcher" class="flex items-center bg-black/40 border border-white/10 p-0.5 rounded-xl text-xs font-medium">
+          <button id="btn-role-host" class="px-3.5 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-medium shadow-sm">
+            Host (Extend)
           </button>
-          <button id="btn-role-receiver" class="px-3 py-1 rounded-lg transition text-slate-400 hover:text-white">
-            Receiver
+          <button id="btn-role-receiver" class="px-3.5 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200">
+            Receiver (Monitor)
           </button>
         </div>
 
-        <div id="header-backend-pill" class="hidden"></div>
-        <div id="header-session-pill" class="hidden"></div>
-        <div id="header-driver-status" class="flex items-center space-x-2">
-          <span class="text-xs text-slate-400">Driver: Checking...</span>
+        <!-- Driver Status Pill -->
+        <div id="header-driver-status" class="flex items-center">
+          <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-medium bg-white/5 text-slate-400 border border-white/5">
+            <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-slate-400 animate-pulse"></span>
+            Checking Driver
+          </span>
         </div>
 
-        <!-- Stream Settings Drawer Trigger Button -->
-        <button id="btn-open-settings" title="Stream & Display Settings" class="flex items-center space-x-1.5 px-3 py-1 bg-slate-850 hover:bg-slate-700 text-slate-300 hover:text-white rounded-xl border border-slate-700/80 transition text-xs font-medium shadow-sm">
+        <!-- Settings Button -->
+        <button id="btn-open-settings" title="Stream & Display Settings" class="flex items-center space-x-1.5 px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white rounded-xl border border-white/10 transition-all text-xs font-medium shadow-sm active:scale-95">
           <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <span>Settings</span>
+          <span class="hidden sm:inline">Settings</span>
         </button>
       </div>
     `;
@@ -132,20 +138,27 @@ export class StatusHeader {
   public setRole(role: "host" | "receiver"): void {
     const hostBtn = document.getElementById("btn-role-host");
     const receiverBtn = document.getElementById("btn-role-receiver");
+    const receiverCard = document.getElementById("receiver-standby-card");
 
     if (role === "host") {
       if (hostBtn) {
-        hostBtn.className = "px-3 py-1 rounded-lg transition bg-indigo-600 text-white shadow-sm";
+        hostBtn.className = "px-3.5 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-medium shadow-sm";
       }
       if (receiverBtn) {
-        receiverBtn.className = "px-3 py-1 rounded-lg transition text-slate-400 hover:text-white";
+        receiverBtn.className = "px-3.5 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
+      }
+      if (receiverCard) {
+        receiverCard.classList.add("hidden");
       }
     } else {
       if (hostBtn) {
-        hostBtn.className = "px-3 py-1 rounded-lg transition text-slate-400 hover:text-white";
+        hostBtn.className = "px-3.5 py-1.5 rounded-lg transition-all duration-200 text-slate-400 hover:text-slate-200";
       }
       if (receiverBtn) {
-        receiverBtn.className = "px-3 py-1 rounded-lg transition bg-indigo-600 text-white shadow-sm";
+        receiverBtn.className = "px-3.5 py-1.5 rounded-lg transition-all duration-200 bg-gradient-to-r from-indigo-600 to-indigo-500 text-white font-medium shadow-sm";
+      }
+      if (receiverCard) {
+        receiverCard.classList.remove("hidden");
       }
     }
   }
@@ -154,49 +167,42 @@ export class StatusHeader {
     // 1. Update OS Badge
     const osBadge = document.getElementById("header-os-badge");
     if (osBadge) {
-      const osLabel = phase2.os === "windows" ? "Windows" : phase2.os === "linux" ? "Linux Wayland" : phase2.os;
+      const osLabel = phase2.os === "windows" ? "Windows 11/10" : phase2.os === "linux" ? "Linux Wayland" : phase2.os;
       osBadge.textContent = osLabel;
     }
 
     // 2. Update Role control
     const currentRole = phase2.role.toLowerCase() === "receiver" ? "receiver" : "host";
     this.setRole(currentRole);
-
-    // 3. Update Backend Pill
-    const backendPill = document.getElementById("header-backend-pill");
-    if (backendPill) {
-      backendPill.classList.remove("hidden");
-      backendPill.innerHTML = `
-        <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-mono bg-slate-800 text-slate-300 border border-slate-700">
-          Backend: ${phase2.active_backend}
-        </span>
-      `;
-    }
   }
 
   public updateSystem(status: SystemStatus): void {
     const infoEl = document.getElementById("header-device-info");
     if (infoEl) {
-      infoEl.textContent = `${status.hostname} • ${status.os.toUpperCase()} Engine`;
+      infoEl.textContent = `${status.hostname} • ${status.os.toUpperCase()} Display Engine`;
     }
 
     const driverEl = document.getElementById("header-driver-status");
     if (driverEl) {
       if (status.driver_installed) {
         driverEl.innerHTML = `
-          <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700/80">
-            <span class="w-1.5 h-1.5 mr-1.5 rounded-full bg-emerald-400"></span>
-            Virtual Driver Ready
+          <span class="inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <svg class="w-3.5 h-3.5 mr-1 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+            </svg>
+            Driver Active
           </span>
         `;
       } else {
         driverEl.innerHTML = `
-          <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
-            Driver Not Installed
-          </span>
-          <button id="btn-install-driver-action" class="px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-sm">
-            Install
-          </button>
+          <div class="flex items-center space-x-1.5">
+            <span class="inline-flex items-center px-2 py-0.5 rounded-lg text-[11px] font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+              Driver Needed
+            </span>
+            <button id="btn-install-driver-action" class="px-2.5 py-1 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-sm active:scale-95 flex items-center space-x-1">
+              <span>Install</span>
+            </button>
+          </div>
         `;
         const installBtn = document.getElementById("btn-install-driver-action");
         if (installBtn && this.onInstallDriverCallback) {
@@ -207,24 +213,6 @@ export class StatusHeader {
   }
 
   public updateSession(session: SessionStatus | null): void {
-    const pill = document.getElementById("header-session-pill");
-    if (!pill) return;
-
-    if (session && session.state === "active") {
-      pill.classList.remove("hidden");
-      const latency = session.latency_ms ?? 16;
-      const res = session.resolution ?? "1920x1080";
-      const fps = session.fps ?? 60;
-      pill.innerHTML = `
-        <div class="flex items-center space-x-2 px-3 py-1 bg-indigo-500/10 border border-indigo-500/30 rounded-xl">
-          <span class="w-2 h-2 rounded-full bg-indigo-400 animate-ping"></span>
-          <span class="text-xs font-medium text-indigo-300">Streaming (${res} @ ${fps}Hz)</span>
-          <span class="text-[11px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">${latency}ms</span>
-        </div>
-      `;
-    } else {
-      pill.classList.add("hidden");
-      pill.innerHTML = "";
-    }
+    // Handled in main.ts updateActiveSessionCard
   }
 }
