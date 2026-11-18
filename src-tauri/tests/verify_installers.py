@@ -112,6 +112,12 @@ def test_icon_suite_integrity(base_dir):
         header = f.read(4)
         assert header == b"\x00\x00\x01\x00", f"Invalid ICO header: {header}"
 
+    with Image.open(ico_path) as ico_img:
+        sizes = ico_img.info.get("sizes", set())
+        expected_mipmaps = {(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)}
+        assert expected_mipmaps.issubset(sizes), f"ICO missing mipmaps: expected {expected_mipmaps}, found {sizes}"
+        print(f"  -> Verified ICO mipmaps: {sorted(list(sizes))}")
+
     print(f"  -> Verified Windows multi-res ICO: {ico_path}")
     print("  [PASS] test_icon_suite_integrity")
 
@@ -121,6 +127,9 @@ def test_tauri_bundle_configuration(base_dir):
     tauri_conf = os.path.join(base_dir, "src-tauri", "tauri.conf.json")
     with open(tauri_conf, "r", encoding="utf-8") as f:
         conf = json.load(f)
+
+    # Tauri 2 schema checks
+    assert "description" not in conf, "Root level 'description' is prohibited by Tauri 2 config schema"
 
     bundle = conf.get("bundle", {})
     assert bundle.get("active") is True, "bundle.active must be true"
@@ -172,16 +181,20 @@ def test_build_scripts_and_ci_workflow(base_dir):
     with open(ps1_path, "r", encoding="utf-8") as f:
         ps1 = f.read()
     assert "pnpm" in ps1 and "tauri" in ps1, "build-windows.ps1 must invoke tauri build"
+    assert "--bundles" in ps1, "build-windows.ps1 must use --bundles flag"
     assert "generate_icons.py" in ps1, "build-windows.ps1 must validate icon suite"
 
     with open(sh_path, "r", encoding="utf-8") as f:
         sh = f.read()
     assert "pnpm" in sh and "tauri" in sh, "build-linux.sh must invoke tauri build"
+    assert "--bundles" in sh, "build-linux.sh must use --bundles flag"
 
     with open(ci_path, "r", encoding="utf-8") as f:
         ci = f.read()
     assert "windows-latest" in ci and "ubuntu-22.04" in ci, "CI workflow must target Windows and Ubuntu"
     assert "tauri-apps/tauri-action" in ci, "CI workflow must use tauri-action"
+    assert "--bundles" in ci, "CI release.yml must pass --bundles flag"
+    assert "releaseDraft: true" in ci, "CI release.yml must use draft releases to prevent matrix race condition"
     assert "nsis,msi" in ci and "deb,appimage" in ci, "CI workflow must bundle all 4 targets"
 
     print("  [PASS] test_build_scripts_and_ci_workflow")

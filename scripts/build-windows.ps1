@@ -69,9 +69,11 @@ if (-not $SkipFrontend) {
 Write-Host "`n[4/5] Preparing packaging targets ($Target)..." -ForegroundColor Yellow
 $TauriArgs = @("run", "tauri", "build")
 if ($Target -eq "nsis") {
-    $TauriArgs += @("--target", "nsis")
+    $TauriArgs += @("--bundles", "nsis")
 } elseif ($Target -eq "msi") {
-    $TauriArgs += @("--target", "msi")
+    $TauriArgs += @("--bundles", "msi")
+} else {
+    $TauriArgs += @("--bundles", "nsis,msi")
 }
 
 # 5. Build Tauri installer packages

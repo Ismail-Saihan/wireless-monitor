@@ -412,10 +412,18 @@ export class App {
 
   private async handleInstallDriver(): Promise<void> {
     const checkDriverBtn = document.getElementById("btn-install-driver") as HTMLButtonElement | null;
-    const prevText = checkDriverBtn ? checkDriverBtn.textContent : null;
+    const actionDriverBtn = document.getElementById("btn-install-driver-action") as HTMLButtonElement | null;
+
+    const prevCardText = checkDriverBtn ? checkDriverBtn.textContent : null;
+    const prevActionText = actionDriverBtn ? actionDriverBtn.textContent : null;
+
     if (checkDriverBtn) {
       checkDriverBtn.textContent = "Installing (check UAC)...";
       checkDriverBtn.disabled = true;
+    }
+    if (actionDriverBtn) {
+      actionDriverBtn.textContent = "Installing...";
+      actionDriverBtn.disabled = true;
     }
 
     try {
@@ -424,13 +432,23 @@ export class App {
       await this.refreshPhase2Status();
       await this.refreshDeviceInfo();
       alert("Virtual Display Driver operation complete. Status refreshed.");
-    } catch (err) {
-      console.error("Driver installation error:", err);
-      alert(`Driver installation: ${err}`);
+    } catch (err: any) {
+      const errStr = String(err || "");
+      if (errStr.includes("exit code: 1") || errStr.includes("cancelled") || errStr.includes("canceled")) {
+        console.warn("Driver installation was cancelled by user.");
+        alert("Driver installation was cancelled.");
+      } else {
+        console.error("Driver installation error:", err);
+        alert(`Driver installation: ${err}`);
+      }
     } finally {
       if (checkDriverBtn) {
         checkDriverBtn.disabled = false;
-        if (prevText) checkDriverBtn.textContent = prevText;
+        if (prevCardText) checkDriverBtn.textContent = prevCardText;
+      }
+      if (actionDriverBtn) {
+        actionDriverBtn.disabled = false;
+        if (prevActionText) actionDriverBtn.textContent = prevActionText;
       }
     }
   }

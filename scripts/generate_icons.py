@@ -156,13 +156,11 @@ def main():
     # 5. Multi-resolution Windows icon.ico
     # Windows icons support 16, 24, 32, 48, 64, 128, 256
     ico_sizes = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
-    ico_images = [master.resize(s, resample=resampling) for s in ico_sizes]
     icon_ico_path = os.path.join(icons_dir, "icon.ico")
-    ico_images[0].save(
+    master.save(
         icon_ico_path,
         format="ICO",
         sizes=ico_sizes,
-        append_images=ico_images[1:],
     )
     print(f"  -> Generated: {icon_ico_path} (Multi-res ICO: {[s[0] for s in ico_sizes]})")
 

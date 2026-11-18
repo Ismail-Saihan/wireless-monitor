@@ -54,9 +54,11 @@ TARGET_FLAG="${1:-all}"
 BUILD_ARGS=("tauri" "build")
 
 if [ "${TARGET_FLAG}" = "deb" ]; then
-    BUILD_ARGS+=("--target" "deb")
+    BUILD_ARGS+=("--bundles" "deb")
 elif [ "${TARGET_FLAG}" = "appimage" ]; then
-    BUILD_ARGS+=("--target" "appimage")
+    BUILD_ARGS+=("--bundles" "appimage")
+else
+    BUILD_ARGS+=("--bundles" "deb,appimage")
 fi
 
 # 5. Build Tauri packages

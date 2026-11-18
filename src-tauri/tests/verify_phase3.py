@@ -864,7 +864,7 @@ def test_packaging_bundle_configuration():
     # Metadata
     assert bundle.get("category") == "Utility"
     assert bundle.get("copyright")
-    assert bundle.get("description") or conf.get("description")
+    assert bundle.get("description") or conf.get("description") or bundle.get("shortDescription")
 
     print("  [PASS] test_packaging_bundle_configuration")
 

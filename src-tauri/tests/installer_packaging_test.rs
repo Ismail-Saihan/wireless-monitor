@@ -1,18 +1,24 @@
 //! Unit and integration tests for installer packaging and runtime resource resolution.
 
 use std::path::{Path, PathBuf};
+use wireless_monitor_lib::display::WindowsIddCxManager;
 
 #[test]
 fn test_driver_script_name_resolution() {
     let script_name = "install_driver.bat";
-    let candidates = [
-        PathBuf::from("drivers/windows").join(script_name),
-        PathBuf::from("../drivers/windows").join(script_name),
-        PathBuf::from("../../drivers/windows").join(script_name),
-    ];
-
-    let found = candidates.iter().any(|c| c.exists());
-    assert!(found, "Driver install script must be resolvable from repository or parent paths");
+    let manager = WindowsIddCxManager::new();
+    let resolved = manager.resolve_script_path(Path::new(script_name));
+    assert!(
+        resolved.is_some(),
+        "WindowsIddCxManager::resolve_script_path must locate {:?} from repository or runtime environment",
+        script_name
+    );
+    let resolved_path = resolved.unwrap();
+    assert!(
+        resolved_path.exists(),
+        "Resolved driver installation script must actually exist on disk: {:?}",
+        resolved_path
+    );
 }
 
 #[test]

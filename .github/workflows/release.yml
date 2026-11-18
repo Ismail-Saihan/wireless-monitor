@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v0.1.0)'
+        required: false
+        default: 'v0.1.0'
 
 permissions:
   contents: write
@@ -17,9 +22,11 @@ jobs:
         include:
           - platform: 'windows-latest'
             target: 'windows'
+            rust-target: 'x86_64-pc-windows-msvc'
             bundle-targets: 'nsis,msi'
           - platform: 'ubuntu-22.04'
             target: 'linux'
+            rust-target: 'x86_64-unknown-linux-gnu'
             bundle-targets: 'deb,appimage'
 
     runs-on: ${{ matrix.platform }}
@@ -41,7 +48,7 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target == 'windows' && 'x86_64-pc-windows-msvc' || 'x86_64-unknown-linux-gnu' }}
+          targets: ${{ matrix.rust-target }}
 
       - name: Rust Cache
         uses: swatinem/rust-cache@v2
@@ -87,23 +94,23 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'Wireless Virtual Monitor ${{ github.ref_name }}'
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}
+          releaseName: 'Wireless Virtual Monitor ${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}'
           releaseBody: |
-            ## Wireless Virtual Monitor ${{ github.ref_name }}
+            ## Wireless Virtual Monitor ${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}
             
             Turnkey cross-platform release with authentic OS virtual monitor extension.
             
             ### Windows:
-            - **NSIS Setup:** `Wireless-Monitor_${{ github.ref_name }}_x64-setup.exe`
-            - **MSI Installer:** `Wireless-Monitor_${{ github.ref_name }}_x64_en-US.msi`
+            - **NSIS Setup:** `Wireless-Monitor_${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}_x64-setup.exe`
+            - **MSI Installer:** `Wireless-Monitor_${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}_x64_en-US.msi`
             
             ### Linux:
-            - **Debian Package:** `wireless-monitor_${{ github.ref_name }}_amd64.deb` (`sudo apt install ./...deb`)
-            - **AppImage:** `Wireless-Monitor_${{ github.ref_name }}_amd64.AppImage` (`chmod +x && ./...`)
-          releaseDraft: false
+            - **Debian Package:** `wireless-monitor_${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}_amd64.deb` (`sudo apt install ./...deb`)
+            - **AppImage:** `Wireless-Monitor_${{ github.ref_type == 'tag' && github.ref_name || (inputs.version || 'v0.1.0') }}_amd64.AppImage` (`chmod +x && ./...`)
+          releaseDraft: true
           prerelease: false
-          args: --target ${{ matrix.bundle-targets }}
+          args: --bundles ${{ matrix.bundle-targets }}
 
       - name: Upload Installer Artifacts
         uses: actions/upload-artifact@v4

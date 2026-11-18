@@ -180,6 +180,7 @@ impl WindowsIddCxManager {
             if let Some(parent) = exe_path.parent() {
                 candidates.push(parent.join("drivers").join("windows").join(file_name));
                 candidates.push(parent.join("resources").join("drivers").join("windows").join(file_name));
+                candidates.push(parent.join("resources").join("_up_").join("drivers").join("windows").join(file_name));
                 candidates.push(parent.join("_up_").join("drivers").join("windows").join(file_name));
                 candidates.push(parent.join("..").join("drivers").join("windows").join(file_name));
             }
