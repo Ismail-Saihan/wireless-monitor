@@ -208,6 +208,7 @@ export class App {
       this.statusHeader.updateSystem(status);
 
       const driverStatusEl = document.getElementById("driver-status");
+      const checkDriverBtn = document.getElementById("btn-install-driver") as HTMLButtonElement | null;
       if (driverStatusEl) {
         const isLinux = this.os === "linux" || status.os === "linux";
         const driverLabel = isLinux
@@ -219,6 +220,16 @@ export class App {
         driverStatusEl.className = status.driver_installed
           ? "text-xs text-emerald-400 font-medium"
           : "text-xs text-amber-400 font-medium";
+      }
+
+      if (checkDriverBtn) {
+        if (status.driver_installed) {
+          checkDriverBtn.textContent = "Driver Active";
+          checkDriverBtn.className = "px-3 py-1.5 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded-lg font-medium transition shadow-sm";
+        } else {
+          checkDriverBtn.textContent = "Install Driver (UAC)";
+          checkDriverBtn.className = "px-3 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-medium transition shadow-md shadow-indigo-500/20";
+        }
       }
     } catch (err) {
       console.error("Failed to query system status:", err);
@@ -400,13 +411,27 @@ export class App {
   }
 
   private async handleInstallDriver(): Promise<void> {
+    const checkDriverBtn = document.getElementById("btn-install-driver") as HTMLButtonElement | null;
+    const prevText = checkDriverBtn ? checkDriverBtn.textContent : null;
+    if (checkDriverBtn) {
+      checkDriverBtn.textContent = "Installing (check UAC)...";
+      checkDriverBtn.disabled = true;
+    }
+
     try {
       await invoke("install_driver");
       await this.refreshSystemStatus();
-      alert("Driver operation complete. Status refreshed.");
+      await this.refreshPhase2Status();
+      await this.refreshDeviceInfo();
+      alert("Virtual Display Driver operation complete. Status refreshed.");
     } catch (err) {
       console.error("Driver installation error:", err);
       alert(`Driver installation: ${err}`);
+    } finally {
+      if (checkDriverBtn) {
+        checkDriverBtn.disabled = false;
+        if (prevText) checkDriverBtn.textContent = prevText;
+      }
     }
   }
 }
