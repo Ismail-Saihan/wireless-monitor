@@ -118,11 +118,13 @@ This application provides a seamless, open, high-performance, bidirectional wire
 - **2.4:** Stage signed Windows driver binaries (`drivers/windows/`) with automated UAC and PnP registration.
 - **2.5:** End-to-end testing: Full bidirectional mode switching and automated test suites.
 
-### Phase 3: Pairing Security Polish, Quality & Packaging — [NEXT]
-- **3.1:** mDNS bidirectional service discovery on LAN.
-- **3.2:** 4-digit PIN pairing and connection approval dialog.
-- **3.3:** Auto-resolution handshake and settings panel (resolution, bitrate cap, framerate).
-- **3.4:** Installer packaging: MSI / NSIS for Windows, `.deb` / `.tar.gz` / AppImage for Linux.
+### Phase 3: Pairing Security Polish, Quality & Packaging — [COMPLETED]
+*Detailed Spec: [2026-11-17-phase3-security-settings-packaging-design.md](2026-11-17-phase3-security-settings-packaging-design.md)*  
+*Detailed Plan: [../plans/2026-11-17-wireless-monitor-phase3.md](../plans/2026-11-17-wireless-monitor-phase3.md)*
+- **3.1:** mDNS bidirectional service discovery on LAN with capability TXT records and reverse initiation.
+- **3.2:** Two-stage 4-digit PIN pairing, receiver connection approval dialog, and 3-attempt lockout.
+- **3.3:** Auto-resolution handshake and Stream Settings drawer (Auto, 1080p, 1440p, 4K, Custom, FPS & Bitrate cap).
+- **3.4:** Turnkey installer packaging: MSI & NSIS with bundled Windows driver assets, and `.deb` / AppImage for Linux.
 
 ---
 

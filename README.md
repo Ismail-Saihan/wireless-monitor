@@ -123,7 +123,7 @@ npx tsc --noEmit
 
 - 📄 [Phase 1 MVP Design Spec](docs/superpowers/specs/2026-11-17-wireless-monitor-design.md)
 - 📄 [Phase 2 Bidirectional Design Spec](docs/superpowers/specs/2026-11-17-phase2-bidirectional-design.md)
-- 📄 [Phase 3 Hardening Design Spec](docs/superpowers/specs/2026-11-17-phase3-hardening-design.md)
+- 📄 [Phase 3 Security, Settings & Packaging Design Spec](docs/superpowers/specs/2026-11-17-phase3-security-settings-packaging-design.md)
 - 📋 [Phase 1 Implementation Plan](docs/superpowers/plans/2026-11-17-wireless-monitor-mvp.md)
 - 📋 [Phase 2 Implementation Plan](docs/superpowers/plans/2026-11-17-wireless-monitor-phase2.md)
 - 📋 [Phase 3 Implementation Plan](docs/superpowers/plans/2026-11-17-wireless-monitor-phase3.md)

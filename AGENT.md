@@ -65,7 +65,7 @@ f:\Wireless Monitor Project\
 │       ├── specs/
 │       │   ├── 2026-11-17-wireless-monitor-design.md
 │       │   ├── 2026-11-17-phase2-bidirectional-design.md
-│       │   └── 2026-11-17-phase3-hardening-design.md
+│       │   └── 2026-11-17-phase3-security-settings-packaging-design.md
 │       └── plans/
 │           ├── 2026-11-17-wireless-monitor-mvp.md
 │           ├── 2026-11-17-wireless-monitor-phase2.md
