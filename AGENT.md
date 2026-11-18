@@ -31,6 +31,7 @@ Phase 1 (Windows Host → Linux Receiver baseline), Phase 2 (Linux Host, Windows
 
 | Subsystem | Source Path | Key Traits / Structs | Test Suite |
 | :--- | :--- | :--- | :--- |
+| **Turnkey Production Installers** | `src-tauri/icons/`, `scripts/` | NSIS (.exe), MSI (.msi), DEB (.deb), AppImage, multi-res icons | `verify_installers.py` |
 | **Comprehensive Phase 3 Integration Suite** | `src-tauri/tests/verify_phase3.py` | Full integration & behavioral verification across all Phase 3 interfaces | `verify_phase3.py` |
 | **mDNS Capabilities & Reverse Initiation** | `src-tauri/src/discovery/` | `PeerDevice` (capabilities, max_res, fps), `initiate_use_as_monitor` | `verify_discovery_caps.py` |
 | **Connection Approval & Enhanced Security** | `src-tauri/src/pairing/pin_auth.rs` | `IncomingRequest`, `PairingState::PendingApproval`, 3-attempt lockout, 300s TTL | `verify_pairing_security.py` |

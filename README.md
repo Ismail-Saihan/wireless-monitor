@@ -52,7 +52,20 @@ Unlike typical remote desktop or windowed mirroring tools, this application crea
 
 ---
 
-## Quick Start
+## Installation (Turnkey Installers)
+
+For standard, normal application installation on Windows and Linux, see the complete **[Installation Guide (INSTALL.md)](INSTALL.md)**:
+
+- **Windows:** Double-click `Wireless-Monitor_0.1.0_x64-setup.exe` (NSIS Setup Wizard) or deploy `Wireless-Monitor_0.1.0_x64_en-US.msi` (MSI enterprise package). Includes Start Menu and Desktop shortcuts, standard Uninstaller, and 1-click in-app driver elevation.
+- **Linux:** Install `wireless-monitor_0.1.0_amd64.deb` (`sudo apt install ./...deb`) or run the standalone `Wireless-Monitor_0.1.0_amd64.AppImage`. Configures standard freedesktop `.desktop` launcher and desktop icons.
+
+To build installers locally:
+- Windows: `.\scripts\build-windows.ps1`
+- Linux: `./scripts/build-linux.sh`
+
+---
+
+## Quick Start (Development)
 
 ### 1. Prerequisites
 - **Operating System:** Windows 10/11 (64-bit) or Linux (Wayland: GNOME 40+ or KDE Plasma 6+)
@@ -121,6 +134,9 @@ npx tsc --noEmit
 
 ## Documentation
 
+- 📦 [Turnkey Installation Guide (INSTALL.md)](INSTALL.md)
+- 📄 [Turnkey Production Installers Design Spec](docs/superpowers/specs/2026-11-18-production-installers-design.md)
+- 📋 [Turnkey Production Installers Implementation Plan](docs/superpowers/plans/2026-11-18-production-installers.md)
 - 📄 [Phase 1 MVP Design Spec](docs/superpowers/specs/2026-11-17-wireless-monitor-design.md)
 - 📄 [Phase 2 Bidirectional Design Spec](docs/superpowers/specs/2026-11-17-phase2-bidirectional-design.md)
 - 📄 [Phase 3 Security, Settings & Packaging Design Spec](docs/superpowers/specs/2026-11-17-phase3-security-settings-packaging-design.md)
