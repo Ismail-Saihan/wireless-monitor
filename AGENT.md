@@ -277,3 +277,43 @@ All workstreams in Phase 3 (Production Packaging, Security Hardening, UX Refinem
 - **Distribution Packaging & Bundling:** Configured `tauri.conf.json` for production distribution: Windows NSIS & MSI installers with staged virtual display driver resources (`drivers/windows/**/*`), Linux `.deb` and AppImage bundles with system dependencies (`libpipewire-0.3-0`, `libdbus-1-3`, `libxdo3`), and application metadata.
 - **Frontend UX Refinements:** Built slide-out `SettingsDrawer`, `ApprovalModal` for incoming connections, capability badges in `DeviceList`, "Use as Monitor" action buttons, and background polling.
 - **Comprehensive Verification Suite:** Delivered `src-tauri/tests/verify_phase3.py` executing all 7 Phase 3 behavioral contracts alongside syntax, interface, and driver asset checks. Zero regressions across Phase 1 and Phase 2.
+
+---
+
+## 7. Modern Minimal UI Architecture & Frontend Build Pipeline
+
+The application frontend is built with **Vite + Tailwind CSS v3 + TypeScript**, engineered for desktop minimalism, fast render cycles, and low IPC overhead:
+
+### 1. Build Pipeline & Style Ingestion
+- `postcss.config.js` and `tailwind.config.js` configured in both project root and `ui/`, scanning `./ui/index.html` and `./ui/src/**/*.{js,ts,jsx,tsx}`.
+- Style entrypoint `ui/src/style.css` imported at the top of `ui/src/main.ts` (`import "./style.css";`), ensuring production bundles compile >25 kB of CSS utilities.
+- Glassmorphic panels (`.glass-panel`, `.glass-panel-subtle`) leverage `backdrop-blur-xl`, `bg-slate-900/80`, and translucent borders (`border-white/[0.08]`).
+
+### 2. Real-Time Telemetry & Active Session HUD
+- Dynamic Active Session HUD (`#active-session-card`) monitors stream state. When active, it displays connected peer hostname, negotiated resolution, and real-time glass-to-glass latency (`< 16 ms`).
+- Role Switcher segmented control (`#btn-role-host` vs `#btn-role-receiver`) enables dynamic switching between transmitting a virtual display or acting as a secondary monitor receiver.
+
+### 3. Device Discovery & Animated Radar
+- When zero peers are visible on the local network, the UI renders an animated CSS radar scanner (`@keyframes radar-pulse`) indicating active mDNS browsing on `_wireless-monitor._tcp`.
+- Discovered devices render capability badges (`1080p`, `1440p`, `4K`, `60 FPS`, `120 FPS`) and dual action gradient buttons (**Extend Screen** and **Use as Monitor**).
+
+### 4. Low-Latency Stream Configuration Drawer
+- Slide-out drawer (`SettingsDrawer`) manages `StreamSettings` persisted in `localStorage` and synchronized with the Rust backend via `invoke("set_stream_settings")`.
+- Supports `auto` (matches physical client geometry), standard presets (1080p, 1440p, 4K), or custom pixel dimensions with even-dimension macroblock validation (`w % 2 == 0`).
+
+---
+
+## 8. Turnkey Production Packaging & CI/CD Release Automation
+
+### 1. GitHub Remote Repository & Releases
+- **Repository URL:** [https://github.com/Ismail-Saihan/wireless-monitor](https://github.com/Ismail-Saihan/wireless-monitor)
+- **Releases Page:** [https://github.com/Ismail-Saihan/wireless-monitor/releases](https://github.com/Ismail-Saihan/wireless-monitor/releases)
+
+### 2. Pre-Built Root Executables
+- Standalone Portable Executable: `wireless-monitor.exe` (~9.67 MB)
+- Turnkey NSIS Setup Wizard: `Wireless-Monitor-Setup.exe` (~2.20 MB)
+
+### 3. Automated Cross-Platform CI/CD
+- Workflow file: `.github/workflows/release.yml`
+- Triggered automatically on push of version tags (`v*`) or manual `workflow_dispatch`.
+- Builds in parallel across `windows-latest` (NSIS `.exe` + MSI `.msi`) and `ubuntu-22.04` (Debian `.deb` + AppImage) and publishes downloadable release assets.

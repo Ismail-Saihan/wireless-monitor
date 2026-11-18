@@ -41,21 +41,21 @@
 **Interfaces:**
 - Produces: Standard multi-resolution icon assets in `src-tauri/icons/` referenced by `bundle.icon` in `tauri.conf.json`.
 
-- [ ] **Step 1: Write `scripts/generate_icons.py` to synthesize high-res icons**
+- [x] **Step 1: Write `scripts/generate_icons.py` to synthesize high-res icons**
 Create script using Python Pillow that generates a modern monitor + wireless signal badge icon and outputs all required dimensions: 32x32, 128x128, 256x256 (`128x128@2x`), 512x512 (`icon.png`), and multi-mipmap `icon.ico`.
 
-- [ ] **Step 2: Run `python scripts/generate_icons.py`**
+- [x] **Step 2: Run `python scripts/generate_icons.py`**
 Run: `python scripts/generate_icons.py`
 Expected: Output files created in `src-tauri/icons/`.
 
-- [ ] **Step 3: Update `src-tauri/tauri.conf.json` with icon mappings**
+- [x] **Step 3: Update `src-tauri/tauri.conf.json` with icon mappings**
 Configure `bundle.icon` array with `["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico", "icons/icon.png"]`.
 
-- [ ] **Step 4: Verify icon files exist and are non-empty**
+- [x] **Step 4: Verify icon files exist and are non-empty**
 Run: `python -c "import os; [os.path.getsize(f'src-tauri/icons/{f}') for f in ['icon.ico', '32x32.png', '128x128.png', '128x128@2x.png', 'icon.png']]"`
 Expected: All files exist with non-zero byte size.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 ```bash
 git add scripts/generate_icons.py src-tauri/icons/ src-tauri/tauri.conf.json
 git commit -m "feat(icons): generate multi-resolution application icons and map in tauri.conf.json"
@@ -73,23 +73,23 @@ git commit -m "feat(icons): generate multi-resolution application icons and map 
 - Consumes: `std::env::current_exe()`
 - Produces: `WindowsIddCxManager::resolve_script_path` supporting installed application directories.
 
-- [ ] **Step 1: Write unit test in `src-tauri/tests/installer_packaging_test.rs`**
+- [x] **Step 1: Write unit test in `src-tauri/tests/installer_packaging_test.rs`**
 Add test asserting that `resolve_script_path` resolves candidates relative to executable parent directories.
 
-- [ ] **Step 2: Run test to observe behavior**
+- [x] **Step 2: Run test to observe behavior**
 Run: `python -c "import subprocess; ..."` / Rust test check.
 
-- [ ] **Step 3: Enhance `resolve_script_path` in `src-tauri/src/display/windows_iddcx.rs`**
+- [x] **Step 3: Enhance `resolve_script_path` in `src-tauri/src/display/windows_iddcx.rs`**
 Update candidate search to probe:
 1. Direct existence of `script`.
 2. Workspace relative paths (`drivers/windows`, `../drivers/windows`, `../../drivers/windows`).
 3. Executable parent relative paths (`parent/drivers/windows`, `parent/resources/drivers/windows`, `parent/_up_/drivers/windows`).
 
-- [ ] **Step 4: Verify syntax and behavior**
+- [x] **Step 4: Verify syntax and behavior**
 Run: `python src-tauri/tests/verify_display.py`
 Expected: PASS with 0 errors.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 ```bash
 git add src-tauri/src/display/windows_iddcx.rs src-tauri/tests/installer_packaging_test.rs
 git commit -m "feat(display): support runtime installed resource resolution in WindowsIddCxManager"
@@ -107,17 +107,17 @@ git commit -m "feat(display): support runtime installed resource resolution in W
 - Consumes: Tauri IPC command `install_driver`
 - Produces: Interactive driver status indicator and 1-click install button in dashboard when running as Windows Host without driver.
 
-- [ ] **Step 1: Add driver installation status and 1-click trigger to `StatusHeader.ts`**
+- [x] **Step 1: Add driver installation status and 1-click trigger to `StatusHeader.ts`**
 Check `phase2Status.windows_receiver_ready` and operating system. When Windows Host has no driver, display an actionable notice with button: "Install Display Driver".
 
-- [ ] **Step 2: Wire `onInstallDriver` handler in `ui/src/main.ts`**
+- [x] **Step 2: Wire `onInstallDriver` handler in `ui/src/main.ts`**
 Invoke `invoke('install_driver')`, display confirmation toast/alert, and refresh status.
 
-- [ ] **Step 3: Typecheck frontend TypeScript**
+- [x] **Step 3: Typecheck frontend TypeScript**
 Run: `npx tsc --noEmit && pnpm run build`
 Expected: 0 errors, successful Vite build.
 
-- [ ] **Step 4: Commit Task 3**
+- [x] **Step 4: Commit Task 3**
 ```bash
 git add ui/src/components/StatusHeader.ts ui/src/main.ts
 git commit -m "feat(ui): add 1-click driver installation banner and action for Windows Host"
@@ -135,20 +135,20 @@ git commit -m "feat(ui): add 1-click driver installation banner and action for W
 **Interfaces:**
 - Produces: Fully tuned `tauri.conf.json` NSIS and Linux bundling settings and turnkey local build scripts.
 
-- [ ] **Step 1: Tune NSIS and Linux settings in `src-tauri/tauri.conf.json`**
+- [x] **Step 1: Tune NSIS and Linux settings in `src-tauri/tauri.conf.json`**
 Configure NSIS `installMode: "both"`, shortcuts, and Linux `categories: ["Utility", "Network", "AudioVideo"]`.
 
-- [ ] **Step 2: Create `scripts/build-windows.ps1`**
+- [x] **Step 2: Create `scripts/build-windows.ps1`**
 Create automated PowerShell script to build frontend, check Rust toolchain, and execute `pnpm tauri build --target nsis,msi`.
 
-- [ ] **Step 3: Create `scripts/build-linux.sh`**
+- [x] **Step 3: Create `scripts/build-linux.sh`**
 Create automated Bash script to build frontend and execute `pnpm tauri build --target deb,appimage`.
 
-- [ ] **Step 4: Validate packaging test**
+- [x] **Step 4: Validate packaging test**
 Run: `python src-tauri/tests/verify_packaging.py`
 Expected: PASS with 0 errors.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 ```bash
 git add src-tauri/tauri.conf.json scripts/build-windows.ps1 scripts/build-linux.sh
 git commit -m "feat(packaging): tune NSIS/Linux bundling configurations and provide build scripts"
@@ -164,13 +164,13 @@ git commit -m "feat(packaging): tune NSIS/Linux bundling configurations and prov
 **Interfaces:**
 - Produces: GitHub Actions workflow triggered on tag pushes (`v*`) or manual `workflow_dispatch`, building Windows (`.exe`, `.msi`) and Linux (`.deb`, `.AppImage`) installers and publishing them to GitHub Releases.
 
-- [ ] **Step 1: Create `.github/workflows/release.yml`**
+- [x] **Step 1: Create `.github/workflows/release.yml`**
 Define matrix build for `windows-latest` and `ubuntu-22.04` with all required system libraries (`libpipewire-0.3-dev`, `libwebkit2gtk-4.1-dev`, `libappindicator3-dev`), Node 20, Rust stable, and Tauri CLI.
 
-- [ ] **Step 2: Validate workflow YAML syntax**
+- [x] **Step 2: Validate workflow YAML syntax**
 Run Python YAML parser to ensure clean formatting.
 
-- [ ] **Step 3: Commit Task 5**
+- [x] **Step 3: Commit Task 5**
 ```bash
 git add .github/workflows/release.yml
 git commit -m "ci: add cross-platform GitHub Actions release workflow for Windows and Linux installers"
@@ -188,13 +188,13 @@ git commit -m "ci: add cross-platform GitHub Actions release workflow for Window
 **Interfaces:**
 - Produces: Clear, step-by-step user installation instructions for both Windows (`.exe` / `.msi`) and Linux (`.deb` / `.AppImage`), plus uninstallation procedures.
 
-- [ ] **Step 1: Create `INSTALL.md`**
+- [x] **Step 1: Create `INSTALL.md`**
 Document standard installation process for Windows and Linux with screenshots/step explanations.
 
-- [ ] **Step 2: Update `README.md` and `AGENT.md`**
+- [x] **Step 2: Update `README.md` and `AGENT.md`**
 Add prominent links to `INSTALL.md` and document installer build workflows.
 
-- [ ] **Step 3: Commit Task 6**
+- [x] **Step 3: Commit Task 6**
 ```bash
 git add INSTALL.md README.md AGENT.md
 git commit -m "docs: add user installation guide and update README and AGENT guidelines"
@@ -210,18 +210,18 @@ git commit -m "docs: add user installation guide and update README and AGENT gui
 **Interfaces:**
 - Produces: Comprehensive automated test suite validating icons, installer configurations, path resolution logic, build scripts, and documentation.
 
-- [ ] **Step 1: Write `src-tauri/tests/verify_installers.py`**
+- [x] **Step 1: Write `src-tauri/tests/verify_installers.py`**
 Implement checks for icon assets, ICO binary header, PNG dimensions, tauri.conf.json bundle schema, resolve_script_path logic, GitHub Actions workflow, and documentation.
 
-- [ ] **Step 2: Run `verify_installers.py`**
+- [x] **Step 2: Run `verify_installers.py`**
 Run: `python src-tauri/tests/verify_installers.py`
 Expected: ALL CHECKS PASS (0 errors).
 
-- [ ] **Step 3: Run all existing verification test suites**
+- [x] **Step 3: Run all existing verification test suites**
 Run: `python src-tauri/tests/verify_phase3.py && python src-tauri/tests/verify_phase2.py && python src-tauri/tests/verify_e2e.py`
 Expected: ALL SUITES PASS without regression.
 
-- [ ] **Step 4: Commit Task 7**
+- [x] **Step 4: Commit Task 7**
 ```bash
 git add src-tauri/tests/verify_installers.py
 git commit -m "test: add verify_installers suite and confirm zero regressions across all test suites"

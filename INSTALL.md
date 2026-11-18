@@ -2,18 +2,27 @@
 
 Welcome to **Wireless Virtual Monitor**! This guide details the standard, normal installation process for both **Windows** and **Linux** systems, enabling you to use your PC or laptop as an authentic wireless secondary display.
 
+Pre-built binaries and installers can be downloaded directly from the **[GitHub Releases Page](https://github.com/Ismail-Saihan/wireless-monitor/releases)**.
+
 ---
 
 ## 🪟 Windows Installation
 
-We provide two standard Windows installer formats:
-1. **NSIS Setup Wizard (`.exe`)** — *Recommended for individual users.*
-2. **MSI Enterprise Installer (`.msi`)** — *Recommended for IT deployments.*
+We provide three Windows distribution formats:
+1. **Portable Standalone Binary (`wireless-monitor.exe`)** — *Zero installation required; runs immediately.*
+2. **NSIS Setup Wizard (`.exe`)** — *Recommended for standard desktop installation with shortcuts.*
+3. **MSI Enterprise Installer (`.msi`)** — *Recommended for enterprise and IT deployments.*
 
-### Method 1: NSIS Setup Wizard (`.exe`)
+### Method 1: Portable Standalone Executable (`wireless-monitor.exe`)
+
+1. **Download:** Grab `wireless-monitor.exe` from [GitHub Releases](https://github.com/Ismail-Saihan/wireless-monitor/releases) or locate it in the project root directory.
+2. **Run:** Double-click `wireless-monitor.exe`.
+3. **No Setup Wizard Required:** The modern minimal UI launches immediately. If acting as a Host, click the **"Install Driver (UAC)"** button in the Display Engine card once to initialize the virtual display driver.
+
+### Method 2: NSIS Setup Wizard (`.exe`)
 
 1. **Download the Installer:**
-   - Grab `Wireless-Monitor_0.1.0_x64-setup.exe` from the GitHub Releases page or build it locally using `.\scripts\build-windows.ps1`.
+   - Grab `Wireless-Monitor_0.1.0_x64-setup.exe` (or `Wireless-Monitor-Setup.exe`) from the [GitHub Releases](https://github.com/Ismail-Saihan/wireless-monitor/releases) page or build it locally using `.\scripts\build-windows.ps1`.
 2. **Run the Setup Wizard:**
    - Double-click `Wireless-Monitor_0.1.0_x64-setup.exe`.
    - Choose your installation mode:
@@ -24,7 +33,7 @@ We provide two standard Windows installer formats:
    - The installer automatically creates a **Start Menu** entry with the official icon and an optional **Desktop** shortcut.
 4. **Virtual Display Driver (Host Mode Only):**
    - If this PC will act as a **Host** (extending its screen to another device):
-     - Open the app. In the **Host Mode** card, click the prominent **"Install Driver (UAC)"** button.
+     - Open the app. In the **Display Engine** card, click the prominent **"Install Driver (UAC)"** button.
      - Accept the Windows User Account Control prompt. The companion service and signed driver certificate will be installed automatically.
      - *Note: If you are only using this computer as a Receiver (external monitor), no driver installation is required!*
 5. **Uninstallation:**
@@ -32,7 +41,7 @@ We provide two standard Windows installer formats:
    - Find **Wireless Monitor** and click **Uninstall**.
    - The uninstaller cleanly removes binaries, shortcuts, and driver registration.
 
-### Method 2: MSI Enterprise Installer (`.msi`)
+### Method 3: MSI Enterprise Installer (`.msi`)
 
 For system administrators deploying across workstations:
 ```cmd

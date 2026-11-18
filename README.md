@@ -1,8 +1,31 @@
 # Wireless Virtual Monitor 🖥️📡
 
+[![Release Turnkey Installers](https://github.com/Ismail-Saihan/wireless-monitor/actions/workflows/release.yml/badge.svg)](https://github.com/Ismail-Saihan/wireless-monitor/actions/workflows/release.yml)
+[![GitHub release](https://img.shields.io/github/v/release/Ismail-Saihan/wireless-monitor?include_prereleases&color=indigo)](https://github.com/Ismail-Saihan/wireless-monitor/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-lightgrey.svg)](INSTALL.md)
+
 A lightweight, cross-platform bidirectional application built with **Rust + Tauri 2.0** that allows you to turn your Windows PC or Linux laptop into an authentic wireless secondary display over local Wi-Fi or Ethernet.
 
 Unlike typical remote desktop or windowed mirroring tools, this application creates a **true virtual monitor** recognized natively by your operating system's Display Settings (Windows Display Settings / GNOME & KDE Wayland Settings), with dynamic desktop extension, repositioning, and scaling.
+
+**Official Repository:** [https://github.com/Ismail-Saihan/wireless-monitor](https://github.com/Ismail-Saihan/wireless-monitor)  
+**Downloads & Releases:** [GitHub Releases Page](https://github.com/Ismail-Saihan/wireless-monitor/releases)
+
+---
+
+## ✨ Modern Minimal Desktop UI
+
+The application features a sleek, high-performance dark-mode interface built with **Tailwind CSS & Glassmorphism**:
+
+- **Ambient Dark Theme**: Minimalist deep navy backdrop (`#090d16`) with radial glow accents, subtle borders (`border-white/[0.08]`), and custom sleek scrollbars.
+- **Live Active Session HUD**: Real-time streaming status banner showing connected peer identity, resolution, framerate, and live **glass-to-glass latency** with an instant disconnect trigger.
+- **Interactive Role Switcher**: Segmented control to instantly toggle between **Host (Extend This Screen)** and **Receiver (Use as Monitor)** modes, syncing state dynamically with the backend display engine.
+- **Display Engine Readiness Card**: Clear visualization of the underlying display driver status (Windows Indirect Display Driver / Linux Wayland RemoteDesktop) with 1-click UAC driver elevation.
+- **Animated Radar Scanner**: Smooth dual-ring radar scanner empty-state that actively searches for nearby network displays over local mDNS.
+- **Discovered Display Cards**: Discovered displays render with capability badges (`1080p`, `1440p`, `4K`, `60 FPS`, `120 FPS`) and dual action gradient buttons (**Extend Screen** and **Use as Monitor**).
+- **Slide-out Stream Configuration Drawer**: Direct control over display resolution modes (**Auto-match receiver geometry**, 1080p, 1440p, 4K, or Custom px dimensions), framerate caps (30/60/120 FPS), and live video bitrate sliders (2–50 Mbps).
+- **Security-First Modals**: Modern 4-digit PIN Pairing Modal and peer Authorization Request Modal with attempt countdowns and brute-force lockout protection.
 
 ---
 
@@ -52,16 +75,23 @@ Unlike typical remote desktop or windowed mirroring tools, this application crea
 
 ---
 
-## Installation (Turnkey Installers)
+## Installation & Pre-Built Downloads
 
-For standard, normal application installation on Windows and Linux, see the complete **[Installation Guide (INSTALL.md)](INSTALL.md)**:
+For complete, step-by-step instructions, see the **[Installation Guide (INSTALL.md)](INSTALL.md)**.
 
-- **Windows:** Double-click `Wireless-Monitor_0.1.0_x64-setup.exe` (NSIS Setup Wizard) or deploy `Wireless-Monitor_0.1.0_x64_en-US.msi` (MSI enterprise package). Includes Start Menu and Desktop shortcuts, standard Uninstaller, and 1-click in-app driver elevation.
-- **Linux:** Install `wireless-monitor_0.1.0_amd64.deb` (`sudo apt install ./...deb`) or run the standalone `Wireless-Monitor_0.1.0_amd64.AppImage`. Configures standard freedesktop `.desktop` launcher and desktop icons.
+Pre-built binaries can be downloaded directly from the **[GitHub Releases Page](https://github.com/Ismail-Saihan/wireless-monitor/releases)** or found in the project root:
 
-To build installers locally:
-- Windows: `.\scripts\build-windows.ps1`
-- Linux: `./scripts/build-linux.sh`
+| Platform | Format | Description |
+| :--- | :--- | :--- |
+| **Windows** | **`Wireless-Monitor_0.1.0_x64-setup.exe`** | Turnkey NSIS Setup Wizard (Start Menu & Desktop shortcuts, uninstaller) |
+| **Windows** | **`wireless-monitor.exe`** | Standalone portable executable (runs directly without installation) |
+| **Windows** | **`Wireless-Monitor_0.1.0_x64_en-US.msi`** | Enterprise MSI installer for enterprise and unattended deployments |
+| **Linux** | **`wireless-monitor_0.1.0_amd64.deb`** | Debian/Ubuntu package with automated dependency resolution via APT |
+| **Linux** | **`Wireless-Monitor_0.1.0_amd64.AppImage`** | Universal standalone executable for Fedora, Arch, openSUSE, etc. |
+
+### Local Build Scripts:
+- **Windows:** `.\scripts\build-windows.ps1`
+- **Linux:** `./scripts/build-linux.sh`
 
 ---
 
