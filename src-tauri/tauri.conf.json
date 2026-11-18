@@ -2,6 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-cli/schema.json",
   "productName": "Wireless Monitor",
   "version": "0.1.0",
+  "description": "Cross-platform bidirectional wireless virtual monitor",
   "identifier": "com.wirelessmonitor.app",
   "build": {
     "beforeDevCommand": "pnpm dev",
