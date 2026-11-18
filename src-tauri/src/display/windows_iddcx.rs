@@ -160,18 +160,30 @@ impl WindowsIddCxManager {
         false
     }
 
-    /// Resolve absolute path to a helper script, checking common relative locations
-    fn resolve_script_path(&self, script: &Path) -> Option<PathBuf> {
+    /// Resolve absolute path to a helper script, checking common relative and installed locations
+    pub fn resolve_script_path(&self, script: &Path) -> Option<PathBuf> {
         if script.exists() {
             return Some(script.to_path_buf());
         }
 
-        // Try relative to workspace root or current executable
-        let candidates = [
-            PathBuf::from("drivers/windows").join(script.file_name().unwrap_or_default()),
-            PathBuf::from("../drivers/windows").join(script.file_name().unwrap_or_default()),
-            PathBuf::from("../../drivers/windows").join(script.file_name().unwrap_or_default()),
+        let file_name = script.file_name().unwrap_or_default();
+
+        // 1. Probing relative to current execution working directory / repository workspace
+        let mut candidates = vec![
+            PathBuf::from("drivers/windows").join(file_name),
+            PathBuf::from("../drivers/windows").join(file_name),
+            PathBuf::from("../../drivers/windows").join(file_name),
         ];
+
+        // 2. Probing relative to current installed executable directory (e.g. Program Files)
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(parent) = exe_path.parent() {
+                candidates.push(parent.join("drivers").join("windows").join(file_name));
+                candidates.push(parent.join("resources").join("drivers").join("windows").join(file_name));
+                candidates.push(parent.join("_up_").join("drivers").join("windows").join(file_name));
+                candidates.push(parent.join("..").join("drivers").join("windows").join(file_name));
+            }
+        }
 
         for candidate in &candidates {
             if candidate.exists() {
