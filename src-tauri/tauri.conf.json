@@ -40,7 +40,6 @@
     "category": "Utility",
     "license": "MIT",
     "shortDescription": "Cross-platform bidirectional wireless virtual monitor",
-    "description": "Cross-platform bidirectional wireless virtual monitor",
     "longDescription": "High-performance low-latency wireless virtual secondary display solution with bidirectional streaming between Windows and Linux.",
     "windows": {
       "nsis": {},
