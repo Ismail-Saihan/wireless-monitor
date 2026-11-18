@@ -1,0 +1,117 @@
+name: Release Turnkey Installers
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-installers:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'windows-latest'
+            target: 'windows'
+            bundle-targets: 'nsis,msi'
+          - platform: 'ubuntu-22.04'
+            target: 'linux'
+            bundle-targets: 'deb,appimage'
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target == 'windows' && 'x86_64-pc-windows-msvc' || 'x86_64-unknown-linux-gnu' }}
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
+
+      - name: Install Linux Build Dependencies (Ubuntu)
+        if: matrix.target == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            libpipewire-0.3-dev \
+            libdbus-1-dev \
+            libxdo-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            libssl-dev \
+            build-essential \
+            curl \
+            wget \
+            file
+
+      - name: Install Python & Pillow for Icons
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Ensure Application Icons Exist
+        run: |
+          python -m pip install --upgrade pillow
+          python scripts/generate_icons.py
+
+      - name: Install Frontend Dependencies
+        run: pnpm install
+
+      - name: Build Frontend Bundle
+        run: pnpm run build
+
+      - name: Build Tauri Production Installers
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Wireless Virtual Monitor ${{ github.ref_name }}'
+          releaseBody: |
+            ## Wireless Virtual Monitor ${{ github.ref_name }}
+            
+            Turnkey cross-platform release with authentic OS virtual monitor extension.
+            
+            ### Windows:
+            - **NSIS Setup:** `Wireless-Monitor_${{ github.ref_name }}_x64-setup.exe`
+            - **MSI Installer:** `Wireless-Monitor_${{ github.ref_name }}_x64_en-US.msi`
+            
+            ### Linux:
+            - **Debian Package:** `wireless-monitor_${{ github.ref_name }}_amd64.deb` (`sudo apt install ./...deb`)
+            - **AppImage:** `Wireless-Monitor_${{ github.ref_name }}_amd64.AppImage` (`chmod +x && ./...`)
+          releaseDraft: false
+          prerelease: false
+          args: --target ${{ matrix.bundle-targets }}
+
+      - name: Upload Installer Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.target }}
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: warn
