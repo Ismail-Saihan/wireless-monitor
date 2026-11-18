@@ -13,6 +13,8 @@ drivers/windows/*.cer
 drivers/windows/*.sys
 drivers/windows/*.inf
 *.log
+*.exe
+src-tauri/gen/
 
 # IDE & OS
 .vscode/

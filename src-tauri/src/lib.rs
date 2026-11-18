@@ -12,7 +12,7 @@ use tracing::{info, warn};
 use crate::capture::{DxgiCapturer, PipeWireCapturer, ScreenCapturer};
 use crate::discovery::{DiscoveryService, MdnsDiscovery, PeerDevice};
 use crate::display::{
-    DisplayConfig, VirtualDisplayManager, WaylandBackend, WaylandDisplayManager, WindowsIddCxManager,
+    DisplayConfig, VirtualDisplayManager, WaylandDisplayManager, WindowsIddCxManager,
 };
 use crate::pairing::{IncomingRequest, PinAuthManager};
 use crate::receiver::{
@@ -744,27 +744,27 @@ impl Drop for AppState {
 // ----------------------------------------------------------------------------
 
 #[tauri::command]
-pub fn check_system_status(state: tauri::State<'_, AppState>) -> SystemStatus {
+fn check_system_status(state: tauri::State<'_, AppState>) -> SystemStatus {
     state.check_system_status()
 }
 
 #[tauri::command]
-pub fn get_device_info(state: tauri::State<'_, AppState>) -> DeviceInfo {
+fn get_device_info(state: tauri::State<'_, AppState>) -> DeviceInfo {
     state.get_device_info()
 }
 
 #[tauri::command]
-pub fn start_discovery(state: tauri::State<'_, AppState>) -> Result<(), String> {
+fn start_discovery(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.start_discovery()
 }
 
 #[tauri::command]
-pub fn get_discovered_peers(state: tauri::State<'_, AppState>) -> Vec<PeerDevice> {
+fn get_discovered_peers(state: tauri::State<'_, AppState>) -> Vec<PeerDevice> {
     state.get_discovered_peers()
 }
 
 #[tauri::command]
-pub fn initiate_extend_display(
+fn initiate_extend_display(
     state: tauri::State<'_, AppState>,
     peer_id: String,
 ) -> Result<SessionStatus, String> {
@@ -772,7 +772,7 @@ pub fn initiate_extend_display(
 }
 
 #[tauri::command]
-pub fn initiate_use_as_monitor(
+fn initiate_use_as_monitor(
     state: tauri::State<'_, AppState>,
     peer_id: String,
     geometry: ClientScreenGeometry,
@@ -781,7 +781,7 @@ pub fn initiate_use_as_monitor(
 }
 
 #[tauri::command]
-pub fn submit_pairing_pin(
+fn submit_pairing_pin(
     state: tauri::State<'_, AppState>,
     peer_id: String,
     pin: String,
@@ -790,32 +790,32 @@ pub fn submit_pairing_pin(
 }
 
 #[tauri::command]
-pub async fn stop_session(state: tauri::State<'_, AppState>) -> Result<(), String> {
+async fn stop_session(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.stop_active_session().await
 }
 
 #[tauri::command]
-pub fn install_driver(state: tauri::State<'_, AppState>) -> Result<(), String> {
+fn install_driver(state: tauri::State<'_, AppState>) -> Result<(), String> {
     state.install_driver()
 }
 
 #[tauri::command]
-pub fn get_session_status(state: tauri::State<'_, AppState>) -> Option<SessionStatus> {
+fn get_session_status(state: tauri::State<'_, AppState>) -> Option<SessionStatus> {
     state.get_active_session()
 }
 
 #[tauri::command]
-pub fn get_operating_system(state: tauri::State<'_, AppState>) -> String {
+fn get_operating_system(state: tauri::State<'_, AppState>) -> String {
     state.get_operating_system()
 }
 
 #[tauri::command]
-pub fn set_app_role(state: tauri::State<'_, AppState>, role: String) -> Result<String, String> {
+fn set_app_role(state: tauri::State<'_, AppState>, role: String) -> Result<String, String> {
     state.set_app_role(&role)
 }
 
 #[tauri::command]
-pub fn start_linux_host(
+fn start_linux_host(
     state: tauri::State<'_, AppState>,
     config: DisplayConfig,
 ) -> Result<u32, String> {
@@ -823,7 +823,7 @@ pub fn start_linux_host(
 }
 
 #[tauri::command]
-pub fn start_windows_receiver(
+fn start_windows_receiver(
     state: tauri::State<'_, AppState>,
     geometry: ClientScreenGeometry,
 ) -> Result<bool, String> {
@@ -831,12 +831,12 @@ pub fn start_windows_receiver(
 }
 
 #[tauri::command]
-pub fn get_phase2_status(state: tauri::State<'_, AppState>) -> Phase2Status {
+fn get_phase2_status(state: tauri::State<'_, AppState>) -> Phase2Status {
     state.get_phase2_status()
 }
 
 #[tauri::command]
-pub fn request_connection(
+fn request_connection(
     state: tauri::State<'_, AppState>,
     peer_id: String,
     peer_name: String,
@@ -845,12 +845,12 @@ pub fn request_connection(
 }
 
 #[tauri::command]
-pub fn get_incoming_requests(state: tauri::State<'_, AppState>) -> Vec<IncomingRequest> {
+fn get_incoming_requests(state: tauri::State<'_, AppState>) -> Vec<IncomingRequest> {
     state.get_incoming_requests()
 }
 
 #[tauri::command]
-pub fn respond_to_request(
+fn respond_to_request(
     state: tauri::State<'_, AppState>,
     peer_id: String,
     approved: bool,
@@ -859,12 +859,12 @@ pub fn respond_to_request(
 }
 
 #[tauri::command]
-pub fn get_stream_settings(state: tauri::State<'_, AppState>) -> StreamSettings {
+fn get_stream_settings(state: tauri::State<'_, AppState>) -> StreamSettings {
     state.get_stream_settings()
 }
 
 #[tauri::command]
-pub fn set_stream_settings(
+fn set_stream_settings(
     state: tauri::State<'_, AppState>,
     settings: StreamSettings,
 ) -> Result<StreamSettings, String> {

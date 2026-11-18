@@ -90,4 +90,20 @@ pub trait VirtualDisplayManager: Send + Sync {
 
     /// Detach and destroy all active virtual displays managed by this instance
     fn destroy_all(&mut self) -> Result<()>;
+
+    /// Get configuration for a specific active virtual display
+    fn get_display_config(&self, monitor_id: u32) -> Option<DisplayConfig>;
+
+    /// Return list of currently active virtual monitor IDs
+    fn list_displays(&self) -> Result<Vec<u32>>;
+
+    /// Return total count of active displays
+    fn display_count(&self) -> usize {
+        self.list_displays().map(|v| v.len()).unwrap_or(0)
+    }
+
+    /// Return active display IDs
+    fn active_displays(&self) -> Vec<u32> {
+        self.list_displays().unwrap_or_default()
+    }
 }

@@ -4,7 +4,7 @@
 //! the DirectX Graphics Infrastructure (DXGI) Desktop Duplication API (`IDXGIOutputDuplication`).
 
 use anyhow::{bail, Context, Result};
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 use super::{CapturedFrame, ScreenCapturer};
 
@@ -23,7 +23,7 @@ use windows::{
     Win32::Graphics::Dxgi::{
         CreateDXGIFactory1, IDXGIAdapter1, IDXGIFactory1, IDXGIOutput, IDXGIOutput1,
         IDXGIOutputDuplication, IDXGIResource, DXGI_ERROR_ACCESS_LOST, DXGI_ERROR_WAIT_TIMEOUT,
-        DXGI_OUTDUPL_FRAME_INFO, DXGI_OUTDUPL_POINTER_SHAPE_INFO, DXGI_OUTPUT_DESC,
+        DXGI_OUTDUPL_FRAME_INFO, DXGI_OUTDUPL_POINTER_SHAPE_INFO,
     },
 };
 
@@ -471,8 +471,7 @@ impl ScreenCapturer for DxgiCapturer {
 
             let duplication = unsafe { output1.DuplicateOutput(&device)? };
 
-            let mut desc = DXGI_OUTPUT_DESC::default();
-            unsafe { output.GetDesc(&mut desc)? };
+            let desc = unsafe { output.GetDesc()? };
             let width = (desc.DesktopCoordinates.right - desc.DesktopCoordinates.left) as u32;
             let height = (desc.DesktopCoordinates.bottom - desc.DesktopCoordinates.top) as u32;
 

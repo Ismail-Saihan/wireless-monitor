@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use mdns_sd::{ServiceDaemon, ServiceEvent, ServiceInfo};
 
 use super::{DiscoveryService, PeerDevice, SERVICE_TYPE};
@@ -312,7 +312,7 @@ impl DiscoveryService for MdnsDiscovery {
     where
         F: Fn(PeerDevice) + Send + Sync + 'static,
     {
-        let cb_arc = Arc::new(on_peer_found);
+        let cb_arc: Arc<dyn Fn(PeerDevice) + Send + Sync + 'static> = Arc::new(on_peer_found);
         {
             let mut cb_guard = self
                 .browse_callback

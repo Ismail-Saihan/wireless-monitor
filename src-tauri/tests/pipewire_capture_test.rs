@@ -275,7 +275,7 @@ fn test_pipewire_cursor_hidden_and_embedded_modes() {
         height: 2,
         hotspot_x: 0,
         hotspot_y: 0,
-        data: vec![255, 0, 0, 255; 4],
+        data: [255, 0, 0, 255].repeat(4),
     };
     capturer.set_cursor_metadata(Some(cursor));
 
@@ -395,7 +395,7 @@ fn test_composite_cursor_if_needed() {
         height: 2,
         hotspot_x: 0,
         hotspot_y: 0,
-        data: vec![255, 0, 0, 255; 4],
+        data: [255, 0, 0, 255].repeat(4),
     };
     capturer.set_cursor_metadata(Some(cursor.clone()));
     assert!(capturer.composite_cursor_if_needed(&mut frame_buf, 50 * 4).is_ok());

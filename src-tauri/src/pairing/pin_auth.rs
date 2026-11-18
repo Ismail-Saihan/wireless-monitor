@@ -321,7 +321,7 @@ impl PinAuthManager {
                 }
             }
         }
-        list.sort_by(|a, b| a.requested_at.cmp(&b.requested_at));
+        list.sort_by(|a, b| a.requested_at.cmp(&b.requested_at).then_with(|| a.peer_id.cmp(&b.peer_id)));
         list
     }
 

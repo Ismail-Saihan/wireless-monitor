@@ -1,6 +1,6 @@
 //! WebRTC Host Peer Connection Session & RTP H.264 Streaming Pipeline
 
-use anyhow::{anyhow, bail, Result};
+use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -285,7 +285,7 @@ impl WebRtcHostSession {
 
     /// Dynamically update video encoder bitrate during active session streaming
     pub fn update_bitrate(&self, bitrate_kbps: u32) -> Result<()> {
-        if let Ok(mut enc) = self.encoder.lock() {
+        if let Ok(mut enc) = self.encoder.try_lock() {
             enc.update_bitrate(bitrate_kbps)?;
         }
         Ok(())

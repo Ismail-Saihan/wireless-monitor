@@ -25,6 +25,7 @@ fn test_peer_device_serialization_and_deserialization() {
         ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 100)),
         port: 8080,
         mode: "host".to_string(),
+        ..Default::default()
     };
 
     assert!(peer.is_host());
@@ -360,6 +361,7 @@ fn test_mdns_discovery_browsing_and_peer_detection() {
         ip: IpAddr::V4(Ipv4Addr::new(192, 168, 1, 150)),
         port: 8081,
         mode: "monitor".to_string(),
+        ..Default::default()
     };
 
     let sim_res = discovery.simulate_peer_discovered(peer.clone());

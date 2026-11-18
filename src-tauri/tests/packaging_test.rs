@@ -237,7 +237,7 @@ fn test_application_metadata_properties() {
 
     let description_present = bundle.contains_key("description")
         || bundle.contains_key("shortDescription")
-        || conf.contains_key("description");
+        || conf.get("description").is_some();
     assert!(
         description_present,
         "Package description must be present in bundle configuration"

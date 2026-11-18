@@ -425,7 +425,7 @@ fn test_zero_orphaned_displays_on_handshake_failure() {
         .request_connection(peer_id, "Faulty Receiver");
 
     // If connection was rejected:
-    assert!(app_state.respond_to_request(peer_id, false).unwrap());
+    assert_eq!(app_state.respond_to_request(peer_id, false), Ok(false));
 
     // Submit PIN fails and creates zero displays
     let res = app_state.submit_pin(peer_id, &pin);

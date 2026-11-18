@@ -51,7 +51,7 @@ echo "  -> Frontend build successful (dist/ ready)."
 
 # 4. Target flags
 TARGET_FLAG="${1:-all}"
-BUILD_ARGS=("tauri" "build")
+BUILD_ARGS=("run" "tauri" "build")
 
 if [ "${TARGET_FLAG}" = "deb" ]; then
     BUILD_ARGS+=("--bundles" "deb")

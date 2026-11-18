@@ -151,13 +151,10 @@ async fn test_pin_lockout_exceeding_max_attempts() {
     // Submit wrong PIN 3 times
     assert_eq!(app_state.submit_pin(peer_id, "0001"), Ok(false));
     assert_eq!(app_state.submit_pin(peer_id, "0002"), Ok(false));
-    let third_attempt = app_state.submit_pin(peer_id, "0003");
-    assert!(
-        third_attempt.is_err(),
-        "3rd failed attempt must lock out session"
-    );
+    assert_eq!(app_state.submit_pin(peer_id, "0003"), Ok(false));
+    assert!(app_state.pin_auth_manager.lock().unwrap().is_locked_out(peer_id), "3rd failed attempt must lock out session");
 
-    // 4th attempt should also fail with lockout
+    // 4th attempt should fail with lockout
     let fourth_attempt = app_state.submit_pin(peer_id, "0004");
     assert!(
         fourth_attempt.is_err(),

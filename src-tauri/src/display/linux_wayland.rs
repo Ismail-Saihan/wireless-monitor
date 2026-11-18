@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use super::{DisplayConfig, VirtualDisplayManager};
 
@@ -532,6 +532,14 @@ impl VirtualDisplayManager for WaylandDisplayManager {
         info!("All Wayland virtual displays destroyed");
 
         Ok(())
+    }
+
+    fn get_display_config(&self, monitor_id: u32) -> Option<DisplayConfig> {
+        self.active_monitors.get(&monitor_id).cloned()
+    }
+
+    fn list_displays(&self) -> Result<Vec<u32>> {
+        Ok(self.active_displays())
     }
 }
 

@@ -425,6 +425,14 @@ impl VirtualDisplayManager for WindowsIddCxManager {
 
         Ok(())
     }
+
+    fn get_display_config(&self, monitor_id: u32) -> Option<DisplayConfig> {
+        self.active_displays.get(&monitor_id).cloned()
+    }
+
+    fn list_displays(&self) -> Result<Vec<u32>> {
+        Ok(self.active_displays())
+    }
 }
 
 /// Implement Drop for safety: guarantees that when WindowsIddCxManager goes out of scope

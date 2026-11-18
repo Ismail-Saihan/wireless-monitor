@@ -166,6 +166,7 @@ pub struct PipeWireCapturer {
 impl PipeWireCapturer {
     /// Create a new PipeWireCapturer. Defaults to simulated mode when not running on Linux.
     pub fn new(width: u32, height: u32) -> Self {
+        #[allow(unused_mut)]
         let mut capturer = Self::new_simulated(width, height);
         #[cfg(target_os = "linux")]
         {

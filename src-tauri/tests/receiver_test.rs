@@ -496,7 +496,7 @@ fn test_presentation_surface_simulated_lifecycle() {
 
     // Low-latency queue with capacity 2: pushing 3 frames causes frame 1 to drop
     surface.queue_frame(frame1).expect("Queue frame 1");
-    surface.queue_frame(frame2).expect("Queue frame 2");
+    surface.queue_frame(frame2.clone()).expect("Queue frame 2");
     surface.queue_frame(frame3).expect("Queue frame 3");
 
     let stats = surface.stats();

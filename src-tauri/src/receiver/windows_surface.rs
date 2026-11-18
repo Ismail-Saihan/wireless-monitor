@@ -13,7 +13,6 @@ use crate::receiver::{ClientScreenGeometry, ReceiverConfig, SurfaceStats};
 
 #[cfg(windows)]
 use windows::{
-    core::Interface,
     Win32::Graphics::Direct3D::{
         D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP, D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_11_1,
@@ -27,7 +26,7 @@ use windows::{
     Win32::Graphics::Dxgi::Common::{
         DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_UNKNOWN, DXGI_SAMPLE_DESC,
     },
-    Win32::Graphics::Dxgi::IDXGISwapChain,
+    Win32::Graphics::Dxgi::{IDXGISwapChain, DXGI_PRESENT, DXGI_SWAP_CHAIN_FLAG},
 };
 
 /// Hardware state container for Direct3D11 device, context, and dynamic swap chain resources
@@ -305,9 +304,9 @@ impl WindowsD3D11Surface {
                     0,
                 );
 
-                // Present to swap chain with 0, 0 for immediate sub-frame presentation
+                // Present to swap chain with 0, DXGI_PRESENT(0) for immediate sub-frame presentation
                 if let Some(swap_chain) = &state.swap_chain {
-                    let _ = swap_chain.Present(0, 0);
+                    let _ = swap_chain.Present(0, DXGI_PRESENT(0));
                 }
             }
         }
@@ -436,7 +435,7 @@ impl WindowsD3D11Surface {
 
             if let Some(swap_chain) = &state.swap_chain {
                 unsafe {
-                    let _ = swap_chain.ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, 0);
+                    let _ = swap_chain.ResizeBuffers(0, width, height, DXGI_FORMAT_UNKNOWN, DXGI_SWAP_CHAIN_FLAG(0));
                 }
             }
         }

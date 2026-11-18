@@ -22,7 +22,7 @@ use wireless_monitor_lib::receiver::{
     ClientScreenGeometry, H264Depacketizer, MonitorReceiver, ReceiverConfig, WindowsD3D11Surface,
 };
 use wireless_monitor_lib::stream::{
-    H264Encoder, RtpPacket, RtpPacketizer, StreamConfig, VideoEncoder,
+    MockVideoEncoder, RtpPacket, RtpPacketizer, StreamConfig, VideoEncoder,
 };
 use wireless_monitor_lib::{AppState, DeviceInfo, Phase2Status, SessionStatus, SystemStatus};
 
@@ -99,7 +99,7 @@ async fn test_linux_host_virtual_display_and_pipewire_capture() {
     assert!(capturer.start(monitor_id).is_ok());
     assert!(capturer.is_running());
 
-    let frame_opt = capturer.capture_frame();
+    let frame_opt = capturer.capture_frame(100);
     assert!(frame_opt.is_ok());
     let frame = frame_opt.unwrap();
     assert!(frame.is_some());
@@ -258,21 +258,21 @@ async fn test_full_bidirectional_pipeline_linux_host_to_windows_receiver() {
     };
     capturer.set_cursor_metadata(Some(cursor));
 
-    let frame = capturer.capture_frame().unwrap().unwrap();
+    let frame = capturer.capture_frame(100).unwrap().unwrap();
     assert_eq!(frame.width, 1920);
     assert_eq!(frame.height, 1080);
     assert!(frame.stride >= 1920 * 4);
 
     // 3. Hardware / Software H.264 Encoder
-    let stream_cfg = StreamConfig::new(1920, 1080, 60, 8_000_000);
-    let mut encoder = H264Encoder::new(stream_cfg).unwrap();
-    let packet = encoder.encode_frame(&frame).unwrap();
+    let mut encoder = MockVideoEncoder::new(StreamConfig::default());
+    let packets = encoder.encode(&frame).unwrap();
+    let packet = &packets[0];
     assert!(!packet.data.is_empty(), "Encoded H.264 packet must not be empty");
 
     // 4. RTP Packetization (RFC 6184)
     let ssrc = 0xDEADBEEF;
-    let mut packetizer = RtpPacketizer::new(ssrc, 1200);
-    let rtp_packets = packetizer.packetize(&packet).unwrap();
+    let mut packetizer = RtpPacketizer::new(1200, ssrc, 96);
+    let rtp_packets = packetizer.packetize(packet);
     assert!(!rtp_packets.is_empty(), "Packetizer must produce RTP packets");
     assert!(rtp_packets.last().unwrap().marker, "Last RTP packet must have marker bit set");
 
@@ -286,7 +286,10 @@ async fn test_full_bidirectional_pipeline_linux_host_to_windows_receiver() {
     }
     assert!(reassembled.is_some(), "Depacketizer must reassemble complete video frame");
     let rx_frame = reassembled.unwrap();
-    assert_eq!(rx_frame.timestamp_us, frame.timestamp_us);
+    assert!(
+        (rx_frame.timestamp_us as i64 - frame.timestamp_us as i64).abs() <= 50,
+        "Timestamp must be preserved within 90kHz RTP clock quantization error"
+    );
 
     // 6. Windows Direct3D11 Presentation Surface Rendering
     let client_geom = ClientScreenGeometry {

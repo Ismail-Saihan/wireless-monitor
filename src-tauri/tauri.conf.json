@@ -51,7 +51,7 @@
       "nsis": {
         "installMode": "both",
         "languages": [
-          "en-US"
+          "English"
         ],
         "displayLanguageSelector": false
       },
