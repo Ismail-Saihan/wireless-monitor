@@ -789,7 +789,7 @@ async fn initiate_extend_display(
         .into_iter()
         .find(|p| p.id == peer_id || p.ip.to_string() == peer_id);
 
-    let remote_pin = if let Some(peer) = &discovered_peer {
+    let (remote_pin, is_approved) = if let Some(peer) = &discovered_peer {
         let ip_str = peer.ip.to_string();
         if !peer.ip.is_unspecified() && !peer.ip.is_loopback() {
             let req = crate::signaling::RequestConnectionPayload {
@@ -798,29 +798,78 @@ async fn initiate_extend_display(
             };
             match crate::signaling::send_request_connection(&ip_str, peer.port, &req).await {
                 Ok(resp) => {
-                    info!("Remote signaling request-connection succeeded with PIN: {}", resp.pin);
-                    Some(resp.pin)
+                    info!(
+                        "Remote signaling request-connection succeeded with PIN: {}, status: {}",
+                        resp.pin, resp.status
+                    );
+                    (Some(resp.pin), resp.status == "approved")
                 }
                 Err(e) => {
-                    warn!("Remote signaling request-connection failed: {}. Falling back to local PIN.", e);
-                    None
+                    warn!(
+                        "Remote signaling request-connection failed: {}. Falling back to local PIN.",
+                        e
+                    );
+                    (None, false)
                 }
             }
         } else {
-            None
+            (None, false)
         }
     } else {
-        None
+        (None, false)
     };
 
     if let Some(pin) = remote_pin {
         if let Ok(mut auth) = state.pin_auth_manager.lock() {
             auth.set_pin(&peer_id, &pin);
         }
+
+        if is_approved {
+            info!("Remote peer auto-approved connection. Finalizing display link directly.");
+            if let Some(peer) = &discovered_peer {
+                let ip_str = peer.ip.to_string();
+                let verify_req = crate::signaling::VerifyPinPayload {
+                    peer_id: state.device_id.clone(),
+                    pin: pin.clone(),
+                };
+                let _ = crate::signaling::send_verify_pin(&ip_str, peer.port, &verify_req).await;
+            }
+
+            let ok = state.submit_pin(&peer_id, &pin)?;
+            if ok {
+                if let Some(peer) = &discovered_peer {
+                    let ip_str = peer.ip.to_string();
+                    let (width, height, fps) = if let Some(sess) = state.get_active_session() {
+                        let res = sess.resolution.unwrap_or_else(|| "1920x1080".to_string());
+                        let parts: Vec<&str> = res.split('x').collect();
+                        let w = parts.get(0).and_then(|v| v.parse::<u32>().ok()).unwrap_or(1920);
+                        let h = parts.get(1).and_then(|v| v.parse::<u32>().ok()).unwrap_or(1080);
+                        (w, h, sess.fps.unwrap_or(60))
+                    } else {
+                        (1920, 1080, 60)
+                    };
+
+                    let host_ip = crate::signaling::get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+                    let stream_payload = crate::signaling::StartReceiverStreamPayload {
+                        peer_id: state.device_id.clone(),
+                        host_ip,
+                        width,
+                        height,
+                        fps,
+                    };
+                    let _ = crate::signaling::send_start_receiver_stream(&ip_str, peer.port, &stream_payload).await;
+                }
+
+                if let Some(active) = state.get_active_session() {
+                    return Ok(active);
+                }
+            }
+        }
+
         let session = SessionStatus {
             session_id: format!("sess-{}", peer_id),
             peer_id: peer_id.clone(),
-            state: "pairing".to_string(),
+            state: "pending_approval".to_string(),
             monitor_id: None,
             resolution: None,
             fps: None,
@@ -873,12 +922,64 @@ async fn submit_pairing_pin(
         }
     }
 
-    state.submit_pin(&peer_id, &pin)
+    let ok = state.submit_pin(&peer_id, &pin)?;
+    if !ok {
+        return Ok(false);
+    }
+
+    if let Some(peer) = &discovered_peer {
+        let ip_str = peer.ip.to_string();
+        if !peer.ip.is_unspecified() && !peer.ip.is_loopback() {
+            let (width, height, fps) = if let Some(sess) = state.get_active_session() {
+                let res = sess.resolution.unwrap_or_else(|| "1920x1080".to_string());
+                let parts: Vec<&str> = res.split('x').collect();
+                let w = parts.get(0).and_then(|v| v.parse::<u32>().ok()).unwrap_or(1920);
+                let h = parts.get(1).and_then(|v| v.parse::<u32>().ok()).unwrap_or(1080);
+                (w, h, sess.fps.unwrap_or(60))
+            } else {
+                (1920, 1080, 60)
+            };
+
+            let host_ip = crate::signaling::get_local_ip().unwrap_or_else(|| "127.0.0.1".to_string());
+            let stream_payload = crate::signaling::StartReceiverStreamPayload {
+                peer_id: state.device_id.clone(),
+                host_ip,
+                width,
+                height,
+                fps,
+            };
+            let _ = crate::signaling::send_start_receiver_stream(&ip_str, peer.port, &stream_payload).await;
+        }
+    }
+
+    Ok(true)
 }
 
 #[tauri::command]
 async fn stop_session(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    if let Some(session) = state.get_active_session() {
+        let discovered_peer = state
+            .discovery_service
+            .get_discovered_peers()
+            .into_iter()
+            .find(|p| p.id == session.peer_id || p.ip.to_string() == session.peer_id);
+        if let Some(peer) = discovered_peer {
+            let ip_str = peer.ip.to_string();
+            if !peer.ip.is_unspecified() && !peer.ip.is_loopback() {
+                let _ = crate::signaling::send_stop_receiver_stream(&ip_str, peer.port).await;
+            }
+        }
+    }
     state.stop_active_session().await
+}
+
+#[tauri::command]
+async fn query_remote_connection_status(
+    ip: String,
+    port: u16,
+    peer_id: String,
+) -> Result<crate::signaling::ConnectionStatusResponse, String> {
+    crate::signaling::send_get_connection_status(&ip, port, &peer_id).await
 }
 
 #[tauri::command]
@@ -1004,6 +1105,7 @@ pub fn run() {
             respond_to_request,
             get_stream_settings,
             set_stream_settings,
+            query_remote_connection_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

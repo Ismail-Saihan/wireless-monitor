@@ -387,7 +387,15 @@ export class App {
       });
       console.log("Session initiated:", session);
       this.activeSession = session;
-      this.pairingModal.open(peer, session.pin);
+
+      if (session.state === "active") {
+        this.statusHeader.updateSession(session);
+        this.updateActiveSessionCard(session);
+        await this.refreshPhase2Status();
+        return;
+      }
+
+      this.pairingModal.open(peer, session.pin, session.state === "pending_approval");
     } catch (err) {
       console.error("Failed to initiate extend display:", err);
       alert(`Failed to start session with ${peer.name}: ${err}`);

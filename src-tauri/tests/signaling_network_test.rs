@@ -146,3 +146,102 @@ async fn test_connect_to_ip_discovery_injection() {
     let found = discovered.iter().any(|p| p.id == peer.id && p.port == port);
     assert!(found, "Injected peer must be present in discovery_service");
 }
+
+#[tokio::test]
+async fn test_signaling_http_connection_status_and_receiver_role_auto_approval() {
+    let port = find_available_port();
+    let state = AppState::new_simulated();
+    // Set to receiver role
+    state.set_app_role("receiver").unwrap();
+    let state_clone = state.clone();
+
+    tokio::spawn(async move {
+        let _ = run_signaling_server(state_clone, port).await;
+    });
+
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    let req = RequestConnectionPayload {
+        peer_id: "host-laptop-1".to_string(),
+        peer_name: "Host-Desktop".to_string(),
+    };
+
+    let resp = send_request_connection("127.0.0.1", port, &req)
+        .await
+        .expect("request-connection must succeed");
+
+    // Because state was in receiver role, it must be auto-approved
+    assert_eq!(resp.status, "approved");
+
+    // Check GET /api/connection-status
+    let status_resp = wireless_monitor_lib::signaling::send_get_connection_status(
+        "127.0.0.1",
+        port,
+        "host-laptop-1",
+    )
+    .await
+    .expect("send_get_connection_status must succeed");
+
+    assert_eq!(status_resp.status, "approved");
+    assert_eq!(status_resp.pin, Some(resp.pin.clone()));
+
+    // Verify PIN works immediately without manual approval
+    let verify_payload = VerifyPinPayload {
+        peer_id: "host-laptop-1".to_string(),
+        pin: resp.pin,
+    };
+    let verify_resp = send_verify_pin("127.0.0.1", port, &verify_payload)
+        .await
+        .expect("verify-pin must succeed");
+    assert!(verify_resp.success);
+
+    // After successful PIN, status must be authenticated
+    let auth_status = wireless_monitor_lib::signaling::send_get_connection_status(
+        "127.0.0.1",
+        port,
+        "host-laptop-1",
+    )
+    .await
+    .expect("send_get_connection_status must succeed");
+    assert_eq!(auth_status.status, "authenticated");
+}
+
+#[tokio::test]
+async fn test_signaling_http_start_stop_receiver_stream() {
+    let port = find_available_port();
+    let state = AppState::new_simulated();
+    let state_clone = state.clone();
+
+    tokio::spawn(async move {
+        let _ = run_signaling_server(state_clone, port).await;
+    });
+
+    tokio::time::sleep(Duration::from_millis(150)).await;
+
+    let start_payload = wireless_monitor_lib::signaling::StartReceiverStreamPayload {
+        peer_id: "host-1".to_string(),
+        host_ip: "127.0.0.1".to_string(),
+        width: 1920,
+        height: 1080,
+        fps: 60,
+    };
+
+    let started = wireless_monitor_lib::signaling::send_start_receiver_stream(
+        "127.0.0.1",
+        port,
+        &start_payload,
+    )
+    .await
+    .expect("send_start_receiver_stream must succeed");
+
+    assert!(started);
+    assert!(state.get_active_session().is_some());
+
+    // Now test stop stream
+    let stopped = wireless_monitor_lib::signaling::send_stop_receiver_stream("127.0.0.1", port)
+        .await
+        .expect("send_stop_receiver_stream must succeed");
+
+    assert!(stopped);
+    assert!(state.get_active_session().is_none());
+}

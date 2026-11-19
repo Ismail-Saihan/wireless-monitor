@@ -54,6 +54,30 @@ pub struct VerifyPinResponse {
     pub success: bool,
 }
 
+/// Query response for GET /api/connection-status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConnectionStatusResponse {
+    pub status: String,
+    pub pin: Option<String>,
+}
+
+/// Request payload for POST /api/start-receiver-stream
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StartReceiverStreamPayload {
+    pub peer_id: String,
+    pub host_ip: String,
+    pub width: u32,
+    pub height: u32,
+    pub fps: u32,
+}
+
+/// Response returned by POST /api/start-receiver-stream and /api/stop-receiver-stream
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StreamControlResponse {
+    pub success: bool,
+    pub message: Option<String>,
+}
+
 /// Determine the preferred local non-loopback IPv4 address
 pub fn get_local_ip() -> Option<String> {
     if let Ok(socket) = std::net::UdpSocket::bind("0.0.0.0:0") {
@@ -203,15 +227,80 @@ async fn handle_http_connection(
             write_http_response(&mut stream, 200, "OK", "application/json", json_body.as_bytes()).await
         }
 
+        ("GET", "/api/connection-status") => {
+            let peer_id = raw_path
+                .split_once('?')
+                .and_then(|(_, query)| {
+                    query.split('&').find_map(|pair| {
+                        let (k, v) = pair.split_once('=')?;
+                        if k == "peer_id" {
+                            Some(v.to_string())
+                        } else {
+                            None
+                        }
+                    })
+                })
+                .unwrap_or_default();
+
+            let status_resp = if let Ok(auth) = state.pin_auth_manager.lock() {
+                if let Some(session) = auth.get_session(&peer_id) {
+                    let status_str = match session.state {
+                        crate::pairing::PairingState::PendingApproval => "pending_approval",
+                        crate::pairing::PairingState::PendingPin | crate::pairing::PairingState::Pending => "approved",
+                        crate::pairing::PairingState::Authenticated => "authenticated",
+                        crate::pairing::PairingState::Rejected => "rejected",
+                        crate::pairing::PairingState::Expired => "expired",
+                        crate::pairing::PairingState::LockedOut => "locked_out",
+                    };
+                    ConnectionStatusResponse {
+                        status: status_str.to_string(),
+                        pin: Some(session.pin.clone()),
+                    }
+                } else {
+                    ConnectionStatusResponse {
+                        status: "not_found".to_string(),
+                        pin: None,
+                    }
+                }
+            } else {
+                ConnectionStatusResponse {
+                    status: "error".to_string(),
+                    pin: None,
+                }
+            };
+
+            let json_body = serde_json::to_string(&status_resp)
+                .map_err(|e| format!("Serialization error: {}", e))?;
+            write_http_response(&mut stream, 200, "OK", "application/json", json_body.as_bytes()).await
+        }
+
         ("POST", "/api/request-connection") => {
             let payload: RequestConnectionPayload = serde_json::from_slice(&body)
                 .map_err(|e| format!("Invalid JSON payload for request-connection: {}", e))?;
 
+            let is_receiver_role = state
+                .app_role
+                .lock()
+                .map(|r| r.as_str() == "receiver")
+                .unwrap_or(false);
+
             let pin = state.request_connection(&payload.peer_id, &payload.peer_name)?;
-            let resp = RequestConnectionResponse {
-                pin,
-                status: "pending_approval".to_string(),
+
+            // Auto-approve connection if this node is explicitly set to Receiver role
+            let status = if is_receiver_role {
+                if let Ok(mut auth) = state.pin_auth_manager.lock() {
+                    let _ = auth.respond_connection(&payload.peer_id, true);
+                }
+                info!(
+                    "Auto-approved incoming connection request from {} because device is in receiver role",
+                    payload.peer_id
+                );
+                "approved".to_string()
+            } else {
+                "pending_approval".to_string()
             };
+
+            let resp = RequestConnectionResponse { pin, status };
 
             let json_body = serde_json::to_string(&resp)
                 .map_err(|e| format!("Serialization error: {}", e))?;
@@ -234,6 +323,50 @@ async fn handle_http_connection(
             };
 
             let resp = VerifyPinResponse { success: verified };
+            let json_body = serde_json::to_string(&resp)
+                .map_err(|e| format!("Serialization error: {}", e))?;
+            write_http_response(&mut stream, 200, "OK", "application/json", json_body.as_bytes()).await
+        }
+
+        ("POST", "/api/start-receiver-stream") => {
+            let payload: StartReceiverStreamPayload = serde_json::from_slice(&body)
+                .map_err(|e| format!("Invalid JSON payload for start-receiver-stream: {}", e))?;
+
+            let width = if payload.width % 2 != 0 { payload.width - 1 } else { payload.width };
+            let height = if payload.height % 2 != 0 { payload.height - 1 } else { payload.height };
+            let geom = crate::receiver::ClientScreenGeometry::new(width, height, payload.fps)
+                .map_err(|e| e.to_string())?;
+
+            match state.start_windows_receiver(&geom) {
+                Ok(success) => {
+                    info!("Receiver stream presentation surface started: {}", success);
+                    let resp = StreamControlResponse {
+                        success,
+                        message: None,
+                    };
+                    let json_body = serde_json::to_string(&resp)
+                        .map_err(|e| format!("Serialization error: {}", e))?;
+                    write_http_response(&mut stream, 200, "OK", "application/json", json_body.as_bytes()).await
+                }
+                Err(e) => {
+                    warn!("Failed to start receiver stream presentation: {}", e);
+                    let resp = StreamControlResponse {
+                        success: false,
+                        message: Some(e),
+                    };
+                    let json_body = serde_json::to_string(&resp)
+                        .map_err(|e| format!("Serialization error: {}", e))?;
+                    write_http_response(&mut stream, 500, "Internal Server Error", "application/json", json_body.as_bytes()).await
+                }
+            }
+        }
+
+        ("POST", "/api/stop-receiver-stream") => {
+            let _ = state.stop_active_session().await;
+            let resp = StreamControlResponse {
+                success: true,
+                message: None,
+            };
             let json_body = serde_json::to_string(&resp)
                 .map_err(|e| format!("Serialization error: {}", e))?;
             write_http_response(&mut stream, 200, "OK", "application/json", json_body.as_bytes()).await
@@ -448,6 +581,125 @@ pub async fn send_verify_pin(
     let body_str = extract_http_body(&response_buf)?;
     serde_json::from_str::<VerifyPinResponse>(&body_str)
         .map_err(|e| format!("Invalid JSON response from {}: {}. Raw: {}", addr, e, body_str))
+}
+
+/// Send GET /api/connection-status to remote peer IP and port
+pub async fn send_get_connection_status(
+    ip: &str,
+    port: u16,
+    peer_id: &str,
+) -> Result<ConnectionStatusResponse, String> {
+    let addr = format!("{}:{}", ip, port);
+    let mut stream = tokio::time::timeout(Duration::from_millis(3500), TcpStream::connect(&addr))
+        .await
+        .map_err(|_| format!("Connection timeout connecting to http://{}/api/connection-status", addr))?
+        .map_err(|e| format!("Failed to connect to http://{}/api/connection-status: {}", addr, e))?;
+
+    let req = format!(
+        "GET /api/connection-status?peer_id={} HTTP/1.1\r\n\
+         Host: {}\r\n\
+         User-Agent: WirelessMonitor/0.1\r\n\
+         Accept: application/json\r\n\
+         Connection: close\r\n\
+         \r\n",
+        peer_id, addr
+    );
+
+    stream
+        .write_all(req.as_bytes())
+        .await
+        .map_err(|e| format!("Failed to write request: {}", e))?;
+    stream
+        .flush()
+        .await
+        .map_err(|e| format!("Failed to flush request: {}", e))?;
+
+    let mut response_buf = Vec::new();
+    tokio::time::timeout(Duration::from_millis(3500), stream.read_to_end(&mut response_buf))
+        .await
+        .map_err(|_| format!("Read timeout from http://{}/api/connection-status", addr))?
+        .map_err(|e| format!("Read error from http://{}/api/connection-status: {}", addr, e))?;
+
+    let body_str = extract_http_body(&response_buf)?;
+    serde_json::from_str::<ConnectionStatusResponse>(&body_str)
+        .map_err(|e| format!("Invalid JSON response from {}: {}. Raw: {}", addr, e, body_str))
+}
+
+/// Send POST /api/start-receiver-stream to remote peer IP and port
+pub async fn send_start_receiver_stream(
+    ip: &str,
+    port: u16,
+    payload: &StartReceiverStreamPayload,
+) -> Result<bool, String> {
+    let addr = format!("{}:{}", ip, port);
+    let body_json = serde_json::to_string(payload).map_err(|e| e.to_string())?;
+
+    let mut stream = tokio::time::timeout(Duration::from_millis(4000), TcpStream::connect(&addr))
+        .await
+        .map_err(|_| format!("Connection timeout connecting to http://{}/api/start-receiver-stream", addr))?
+        .map_err(|e| format!("Failed to connect to http://{}/api/start-receiver-stream: {}", addr, e))?;
+
+    let req = format!(
+        "POST /api/start-receiver-stream HTTP/1.1\r\n\
+         Host: {}\r\n\
+         Content-Type: application/json\r\n\
+         Content-Length: {}\r\n\
+         User-Agent: WirelessMonitor/0.1\r\n\
+         Accept: application/json\r\n\
+         Connection: close\r\n\
+         \r\n\
+         {}",
+        addr,
+        body_json.len(),
+        body_json
+    );
+
+    stream
+        .write_all(req.as_bytes())
+        .await
+        .map_err(|e| format!("Failed to write request: {}", e))?;
+    stream
+        .flush()
+        .await
+        .map_err(|e| format!("Failed to flush request: {}", e))?;
+
+    let mut response_buf = Vec::new();
+    tokio::time::timeout(Duration::from_millis(4000), stream.read_to_end(&mut response_buf))
+        .await
+        .map_err(|_| format!("Read timeout from http://{}/api/start-receiver-stream", addr))?
+        .map_err(|e| format!("Read error from http://{}/api/start-receiver-stream: {}", addr, e))?;
+
+    let body_str = extract_http_body(&response_buf)?;
+    let resp: StreamControlResponse = serde_json::from_str(&body_str)
+        .map_err(|e| format!("Invalid JSON response from {}: {}. Raw: {}", addr, e, body_str))?;
+    Ok(resp.success)
+}
+
+/// Send POST /api/stop-receiver-stream to remote peer IP and port
+pub async fn send_stop_receiver_stream(ip: &str, port: u16) -> Result<bool, String> {
+    let addr = format!("{}:{}", ip, port);
+    let mut stream = match tokio::time::timeout(Duration::from_millis(3000), TcpStream::connect(&addr)).await {
+        Ok(Ok(s)) => s,
+        _ => return Ok(false),
+    };
+
+    let req = format!(
+        "POST /api/stop-receiver-stream HTTP/1.1\r\n\
+         Host: {}\r\n\
+         Content-Type: application/json\r\n\
+         Content-Length: 0\r\n\
+         User-Agent: WirelessMonitor/0.1\r\n\
+         Connection: close\r\n\
+         \r\n",
+        addr
+    );
+
+    let _ = stream.write_all(req.as_bytes()).await;
+    let _ = stream.flush().await;
+
+    let mut response_buf = Vec::new();
+    let _ = tokio::time::timeout(Duration::from_millis(3000), stream.read_to_end(&mut response_buf)).await;
+    Ok(true)
 }
 
 /// Connect directly to a peer by IP address, query /api/info, and inject into discovery service

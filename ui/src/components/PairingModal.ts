@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { PeerDevice } from "./DeviceList";
 
 export class PairingModal {
@@ -7,6 +8,7 @@ export class PairingModal {
   private onCancelCallback: () => void;
   private attemptsRemaining: number = 3;
   private isSubmitting: boolean = false;
+  private approvalPollTimer: number | null = null;
 
   constructor(
     containerId: string,
@@ -23,12 +25,17 @@ export class PairingModal {
     this.render();
   }
 
-  public open(peer: PeerDevice, pinHint?: string | null): void {
+  public open(peer: PeerDevice, pinHint?: string | null, isPendingApproval: boolean = false): void {
+    this.clearApprovalPollTimer();
     this.currentPeer = peer;
     this.attemptsRemaining = 3;
     this.isSubmitting = false;
-    this.renderModal(pinHint);
+    this.renderModal(pinHint, isPendingApproval);
     this.container.classList.remove("hidden");
+
+    if (isPendingApproval && peer.ip) {
+      this.startApprovalPolling(peer, pinHint);
+    }
 
     // Focus input
     setTimeout(() => {
@@ -41,14 +48,78 @@ export class PairingModal {
         }
         input.focus();
         input.select();
+        this.updateSubmitButtonState();
       }
     }, 50);
   }
 
   public close(): void {
+    this.clearApprovalPollTimer();
     this.currentPeer = null;
     this.container.classList.add("hidden");
     this.container.innerHTML = "";
+  }
+
+  private clearApprovalPollTimer(): void {
+    if (this.approvalPollTimer !== null) {
+      clearInterval(this.approvalPollTimer);
+      this.approvalPollTimer = null;
+    }
+  }
+
+  private startApprovalPolling(peer: PeerDevice, pinHint?: string | null): void {
+    this.clearApprovalPollTimer();
+    const peerIp = peer.ip;
+    const peerPort = peer.port || 5000;
+
+    this.approvalPollTimer = window.setInterval(async () => {
+      try {
+        const resp = await invoke<{ status: string; pin?: string | null }>(
+          "query_remote_connection_status",
+          {
+            ip: peerIp,
+            port: peerPort,
+            peerId: peer.id,
+          }
+        );
+
+        if (resp.status === "approved" || resp.status === "authenticated") {
+          this.clearApprovalPollTimer();
+          const waitingCard = document.getElementById("approval-waiting-card");
+          if (waitingCard) {
+            waitingCard.className =
+              "mb-4 p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-center flex items-center space-x-3";
+            waitingCard.innerHTML = `
+              <span class="w-3 h-3 rounded-full bg-emerald-400 animate-ping"></span>
+              <div class="text-left">
+                <div class="text-xs font-semibold text-emerald-300">Connection Approved!</div>
+                <div class="text-[11px] text-slate-300">Starting display stream...</div>
+              </div>
+            `;
+          }
+
+          const targetPin = resp.pin || pinHint;
+          if (targetPin) {
+            this.isSubmitting = true;
+            this.updateSubmitButtonState();
+            try {
+              const ok = await this.onSubmitCallback(peer.id, targetPin);
+              if (ok) {
+                this.close();
+              }
+            } finally {
+              this.isSubmitting = false;
+              this.updateSubmitButtonState();
+            }
+          }
+        } else if (resp.status === "rejected") {
+          this.clearApprovalPollTimer();
+          this.setError(`Connection request was declined by ${peer.name}`);
+        }
+      } catch (e) {
+        // Ignore transient poll error
+      }
+    }, 800);
   }
 
   public setError(errorMsg: string, attemptsRemaining?: number): void {
@@ -76,8 +147,23 @@ export class PairingModal {
       "fixed inset-0 bg-black/75 backdrop-blur-md z-50 flex items-center justify-center p-4 hidden";
   }
 
-  private renderModal(pinHint?: string | null): void {
+  private renderModal(pinHint?: string | null, isPendingApproval: boolean = false): void {
     if (!this.currentPeer) return;
+
+    const waitingHtml = isPendingApproval
+      ? `
+        <div id="approval-waiting-card" class="mb-4 p-3.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-center flex items-center space-x-3">
+          <svg class="animate-spin h-5 w-5 text-amber-400 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+          </svg>
+          <div class="text-left">
+            <div class="text-xs font-semibold text-amber-300">Awaiting Acceptance on Receiver</div>
+            <div class="text-[11px] text-slate-300">Please click <strong class="text-white">Accept Display</strong> on ${this.currentPeer.name}</div>
+          </div>
+        </div>
+      `
+      : "";
 
     const pinHintHtml = pinHint
       ? `
@@ -87,7 +173,7 @@ export class PairingModal {
             ${pinHint}
           </div>
           <p class="text-[11px] text-slate-400">
-            Enter this code on <strong class="text-white">${this.currentPeer.name}</strong> to establish display link.
+            Security code for <strong class="text-white">${this.currentPeer.name}</strong>.
           </p>
         </div>
       `
