@@ -145,7 +145,19 @@ def test_tauri_bundle_configuration(base_dir):
 
     windows = bundle.get("windows", {})
     nsis = windows.get("nsis", {})
-    assert nsis.get("installMode") == "both", f"Expected nsis.installMode == 'both', got {nsis.get('installMode')}"
+    assert nsis.get("installMode") == "perMachine", f"Expected nsis.installMode == 'perMachine', got {nsis.get('installMode')}"
+    assert nsis.get("installerHooks") == "nsis/installerHooks.nsh", f"Expected nsis.installerHooks == 'nsis/installerHooks.nsh', got {nsis.get('installerHooks')}"
+
+    hooks_path = os.path.join(base_dir, "src-tauri", "nsis", "installerHooks.nsh")
+    assert os.path.isfile(hooks_path), f"NSIS installer hooks file missing at {hooks_path}"
+    with open(hooks_path, "r", encoding="utf-8") as f:
+        hooks_content = f.read()
+    assert "NSIS_HOOK_POSTINSTALL" in hooks_content, "Missing NSIS_HOOK_POSTINSTALL in installerHooks.nsh"
+    assert "NSIS_HOOK_PREUNINSTALL" in hooks_content, "Missing NSIS_HOOK_PREUNINSTALL in installerHooks.nsh"
+    assert "nsExec::ExecToLog" in hooks_content, "Missing nsExec::ExecToLog in installerHooks.nsh"
+    assert "install_driver.bat" in hooks_content, "Missing install_driver.bat in installerHooks.nsh"
+    assert "uninstall_driver.bat" in hooks_content, "Missing uninstall_driver.bat in installerHooks.nsh"
+    assert 'name="Wireless Monitor"' in hooks_content, "Missing Windows Firewall rule registration in installerHooks.nsh"
 
     linux = bundle.get("linux", {})
     deb = linux.get("deb", {})

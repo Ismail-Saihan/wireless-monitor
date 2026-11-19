@@ -3,6 +3,7 @@ pub mod discovery;
 pub mod display;
 pub mod pairing;
 pub mod receiver;
+pub mod signaling;
 pub mod stream;
 
 use std::sync::{Arc, Mutex};
@@ -395,16 +396,22 @@ impl AppState {
     pub fn get_device_info(&self) -> DeviceInfo {
         let status = self.check_system_status();
         let session = self.get_active_session();
+        let local_ip = crate::signaling::get_local_ip().or_else(|| Some("127.0.0.1".to_string()));
 
         DeviceInfo {
             device_id: self.device_id.clone(),
             hostname: self.hostname.clone(),
             os: status.os,
             driver_installed: status.driver_installed,
-            ip: Some("127.0.0.1".to_string()),
+            ip: local_ip,
             port: self.port,
             active_session: session,
         }
+    }
+
+    /// Connect directly to a peer by IP address, query /api/info, and inject into discovery service
+    pub async fn connect_to_ip(&self, ip: &str) -> Result<PeerDevice, String> {
+        crate::signaling::connect_to_ip(self, ip).await
     }
 
     /// Start mDNS advertising and peer browsing
@@ -764,11 +771,69 @@ fn get_discovered_peers(state: tauri::State<'_, AppState>) -> Vec<PeerDevice> {
 }
 
 #[tauri::command]
-fn initiate_extend_display(
+async fn connect_to_ip(
+    state: tauri::State<'_, AppState>,
+    ip: String,
+) -> Result<PeerDevice, String> {
+    state.connect_to_ip(&ip).await
+}
+
+#[tauri::command]
+async fn initiate_extend_display(
     state: tauri::State<'_, AppState>,
     peer_id: String,
 ) -> Result<SessionStatus, String> {
-    state.initiate_extend_display(&peer_id)
+    let discovered_peer = state
+        .discovery_service
+        .get_discovered_peers()
+        .into_iter()
+        .find(|p| p.id == peer_id || p.ip.to_string() == peer_id);
+
+    let remote_pin = if let Some(peer) = &discovered_peer {
+        let ip_str = peer.ip.to_string();
+        if !peer.ip.is_unspecified() && !peer.ip.is_loopback() {
+            let req = crate::signaling::RequestConnectionPayload {
+                peer_id: state.device_id.clone(),
+                peer_name: state.hostname.clone(),
+            };
+            match crate::signaling::send_request_connection(&ip_str, peer.port, &req).await {
+                Ok(resp) => {
+                    info!("Remote signaling request-connection succeeded with PIN: {}", resp.pin);
+                    Some(resp.pin)
+                }
+                Err(e) => {
+                    warn!("Remote signaling request-connection failed: {}. Falling back to local PIN.", e);
+                    None
+                }
+            }
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    if let Some(pin) = remote_pin {
+        if let Ok(mut auth) = state.pin_auth_manager.lock() {
+            auth.set_pin(&peer_id, &pin);
+        }
+        let session = SessionStatus {
+            session_id: format!("sess-{}", peer_id),
+            peer_id: peer_id.clone(),
+            state: "pairing".to_string(),
+            monitor_id: None,
+            resolution: None,
+            fps: None,
+            latency_ms: None,
+            pin: Some(pin),
+        };
+        if let Ok(mut sess) = state.active_session.lock() {
+            *sess = Some(session.clone());
+        }
+        Ok(session)
+    } else {
+        state.initiate_extend_display(&peer_id)
+    }
 }
 
 #[tauri::command]
@@ -781,11 +846,33 @@ fn initiate_use_as_monitor(
 }
 
 #[tauri::command]
-fn submit_pairing_pin(
+async fn submit_pairing_pin(
     state: tauri::State<'_, AppState>,
     peer_id: String,
     pin: String,
 ) -> Result<bool, String> {
+    let discovered_peer = state
+        .discovery_service
+        .get_discovered_peers()
+        .into_iter()
+        .find(|p| p.id == peer_id || p.ip.to_string() == peer_id);
+
+    if let Some(peer) = &discovered_peer {
+        let ip_str = peer.ip.to_string();
+        if !peer.ip.is_unspecified() && !peer.ip.is_loopback() {
+            let req = crate::signaling::VerifyPinPayload {
+                peer_id: state.device_id.clone(),
+                pin: pin.clone(),
+            };
+            if let Ok(resp) = crate::signaling::send_verify_pin(&ip_str, peer.port, &req).await {
+                if !resp.success {
+                    info!("Remote verify-pin rejected candidate PIN");
+                    return Ok(false);
+                }
+            }
+        }
+    }
+
     state.submit_pin(&peer_id, &pin)
 }
 
@@ -879,6 +966,14 @@ pub fn run() {
     let app_state = AppState::new();
     let app_state_clone = app_state.clone();
 
+    // Start network HTTP signaling listener on port 5000 in background
+    let signaling_state = app_state.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(e) = crate::signaling::run_signaling_server(signaling_state, 5000).await {
+            warn!("Signaling listener error: {}", e);
+        }
+    });
+
     tauri::Builder::default()
         .manage(app_state)
         .on_window_event(move |_window, event| {
@@ -892,6 +987,7 @@ pub fn run() {
             get_device_info,
             start_discovery,
             get_discovered_peers,
+            connect_to_ip,
             initiate_extend_display,
             initiate_use_as_monitor,
             submit_pairing_pin,

@@ -49,11 +49,12 @@
     "longDescription": "High-performance low-latency wireless virtual secondary display solution with bidirectional streaming between Windows and Linux.",
     "windows": {
       "nsis": {
-        "installMode": "both",
+        "installMode": "perMachine",
         "languages": [
           "English"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "nsis/installerHooks.nsh"
       },
       "wix": {
         "language": "en-US"

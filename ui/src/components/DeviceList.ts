@@ -15,6 +15,7 @@ export class DeviceList {
   private onExtendClick: (peer: PeerDevice) => void;
   private onUseAsMonitorClick: (peer: PeerDevice) => void;
   private onRefreshClick: () => void;
+  private onConnectIpClick?: () => void;
   private currentPeers: PeerDevice[] = [];
   private isLoading: boolean = false;
 
@@ -22,7 +23,8 @@ export class DeviceList {
     containerId: string,
     onExtendClick: (peer: PeerDevice) => void,
     onUseAsMonitorClick: (peer: PeerDevice) => void,
-    onRefreshClick: () => void
+    onRefreshClick: () => void,
+    onConnectIpClick?: () => void
   ) {
     const el = document.getElementById(containerId);
     if (!el) {
@@ -32,6 +34,7 @@ export class DeviceList {
     this.onExtendClick = onExtendClick;
     this.onUseAsMonitorClick = onUseAsMonitorClick;
     this.onRefreshClick = onRefreshClick;
+    this.onConnectIpClick = onConnectIpClick;
     this.render();
   }
 
@@ -73,14 +76,22 @@ export class DeviceList {
               ${this.currentPeers.length}
             </span>
           </h2>
-          <p class="text-[11px] text-slate-400 mt-0.5">Discovered via zero-config local mDNS</p>
+          <p class="text-[11px] text-slate-400 mt-0.5">Discovered via mDNS or Direct LAN IP</p>
         </div>
-        <button id="btn-refresh-peers" class="text-xs px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white font-medium rounded-xl border border-white/10 transition-all flex items-center active:scale-95 shadow-sm">
-          <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-400 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          Scan LAN
-        </button>
+        <div class="flex items-center space-x-2">
+          <button id="btn-connect-by-ip" class="text-xs px-3 py-1.5 bg-indigo-600/25 hover:bg-indigo-600/40 text-indigo-300 hover:text-white font-medium rounded-xl border border-indigo-500/30 transition-all flex items-center active:scale-95 shadow-sm">
+            <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-400 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+            </svg>
+            Connect by IP
+          </button>
+          <button id="btn-refresh-peers" class="text-xs px-3 py-1.5 bg-white/5 hover:bg-white/10 text-slate-200 hover:text-white font-medium rounded-xl border border-white/10 transition-all flex items-center active:scale-95 shadow-sm">
+            <svg class="w-3.5 h-3.5 mr-1.5 text-indigo-400 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Scan LAN
+          </button>
+        </div>
       </div>
 
       <div id="peers-inner-list" class="space-y-3"></div>
@@ -91,18 +102,23 @@ export class DeviceList {
       refreshBtn.onclick = () => this.onRefreshClick();
     }
 
+    const connectIpBtn = document.getElementById("btn-connect-by-ip");
+    if (connectIpBtn) {
+      connectIpBtn.onclick = () => this.onConnectIpClick?.();
+    }
+
     const listEl = document.getElementById("peers-inner-list");
     if (!listEl) return;
 
     if (this.currentPeers.length === 0) {
       listEl.innerHTML = `
-        <div class="text-center py-16 px-6 border border-dashed border-white/10 rounded-2xl bg-black/20 flex flex-col items-center justify-center relative overflow-hidden">
+        <div class="text-center py-12 px-6 border border-dashed border-white/10 rounded-2xl bg-black/20 flex flex-col items-center justify-center relative overflow-hidden">
           <!-- Animated Radar Scanner -->
-          <div class="relative w-20 h-20 mb-4 flex items-center justify-center">
+          <div class="relative w-16 h-16 mb-4 flex items-center justify-center">
             <div class="absolute inset-0 rounded-full bg-indigo-500/20 animate-radar"></div>
             <div class="absolute inset-2 rounded-full bg-indigo-500/30 animate-ping"></div>
-            <div class="relative w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-600/40 to-violet-500/40 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/20">
-              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div class="relative w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-600/40 to-violet-500/40 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shadow-lg shadow-indigo-500/20">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071a10 10 0 0114.142 0M1.393 9.393a15 15 0 0121.214 0" />
               </svg>
             </div>
@@ -111,12 +127,25 @@ export class DeviceList {
           <p class="text-xs text-slate-400 mt-1 max-w-sm">
             Launch Wireless Monitor on another laptop, PC, or tablet connected to the same Wi-Fi network.
           </p>
-          <div class="mt-4 flex items-center space-x-2 text-[11px] text-slate-500 font-mono">
+          <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <button id="btn-empty-connect-ip" class="px-3.5 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-medium transition shadow-md shadow-indigo-950/40 flex items-center space-x-1.5 active:scale-95">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+              </svg>
+              <span>Connect by IP (e.g. 10.179.0.245)</span>
+            </button>
+          </div>
+          <div class="mt-3 flex items-center space-x-2 text-[10px] text-slate-500 font-mono">
             <span>mDNS Service:</span>
             <span class="text-indigo-400 bg-white/5 px-2 py-0.5 rounded border border-white/5">_wireless-monitor._tcp</span>
           </div>
         </div>
       `;
+
+      const emptyConnectBtn = document.getElementById("btn-empty-connect-ip");
+      if (emptyConnectBtn) {
+        emptyConnectBtn.onclick = () => this.onConnectIpClick?.();
+      }
       return;
     }
 

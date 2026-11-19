@@ -43,3 +43,39 @@ fn test_icon_assets_presence_and_structure() {
         assert!(metadata.len() > 0, "Icon file {:?} must not be empty", icon);
     }
 }
+
+#[test]
+fn test_nsis_installer_hooks_presence_and_structure() {
+    let base_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let hooks_path = base_dir.join("nsis/installerHooks.nsh");
+    assert!(
+        hooks_path.exists(),
+        "NSIS installer hooks script must exist at {:?}",
+        hooks_path
+    );
+    let content = std::fs::read_to_string(&hooks_path).expect("Failed to read installerHooks.nsh");
+    assert!(
+        content.contains("NSIS_HOOK_POSTINSTALL"),
+        "installerHooks.nsh must define NSIS_HOOK_POSTINSTALL"
+    );
+    assert!(
+        content.contains("NSIS_HOOK_PREUNINSTALL"),
+        "installerHooks.nsh must define NSIS_HOOK_PREUNINSTALL"
+    );
+    assert!(
+        content.contains("nsExec::ExecToLog"),
+        "installerHooks.nsh must use nsExec::ExecToLog for silent execution"
+    );
+    assert!(
+        content.contains("install_driver.bat"),
+        "installerHooks.nsh must reference install_driver.bat"
+    );
+    assert!(
+        content.contains("uninstall_driver.bat"),
+        "installerHooks.nsh must reference uninstall_driver.bat"
+    );
+    assert!(
+        content.contains("Wireless Monitor"),
+        "installerHooks.nsh must configure firewall rule for Wireless Monitor"
+    );
+}

@@ -5,6 +5,7 @@ import { DeviceList, PeerDevice } from "./components/DeviceList";
 import { PairingModal } from "./components/PairingModal";
 import { SettingsDrawer, StreamSettings } from "./components/SettingsDrawer";
 import { ApprovalModal, IncomingRequest } from "./components/ApprovalModal";
+import { ConnectIpModal } from "./components/ConnectIpModal";
 
 export interface DeviceInfo {
   device_id: string;
@@ -34,6 +35,7 @@ export class App {
   private pairingModal!: PairingModal;
   private settingsDrawer!: SettingsDrawer;
   private approvalModal!: ApprovalModal;
+  private connectIpModal!: ConnectIpModal;
   public currentPeers: PeerDevice[] = [];
   public activeSession: SessionStatus | null = null;
   public deviceInfo: DeviceInfo | null = null;
@@ -90,11 +92,22 @@ export class App {
       () => this.settingsDrawer.open()
     );
 
+    this.connectIpModal = new ConnectIpModal(
+      "connect-ip-modal-container",
+      async (ip: string) => {
+        return await this.handleConnectByIp(ip);
+      },
+      (peer: PeerDevice) => {
+        this.handleExtendDisplay(peer);
+      }
+    );
+
     this.deviceList = new DeviceList(
       "device-list-container",
       (peer) => this.handleExtendDisplay(peer),
       (peer) => this.handleUseAsMonitor(peer),
-      () => this.refreshPeers()
+      () => this.refreshPeers(),
+      () => this.connectIpModal.open("10.179.0.245")
     );
 
     this.pairingModal = new PairingModal(
@@ -208,11 +221,25 @@ export class App {
     }
   }
 
+  public async handleConnectByIp(ip: string): Promise<PeerDevice> {
+    console.log(`Connecting directly to peer at IP: ${ip}...`);
+    try {
+      const peer = await invoke<PeerDevice>("connect_to_ip", { ip });
+      console.log("Direct IP peer discovery successful:", peer);
+      await this.refreshPeers(false);
+      return peer;
+    } catch (err) {
+      console.error(`Direct IP connection to ${ip} failed:`, err);
+      throw err;
+    }
+  }
+
   private async refreshDeviceInfo(): Promise<void> {
     try {
       this.deviceInfo = await invoke<DeviceInfo>("get_device_info");
       console.log("Device Info loaded:", this.deviceInfo);
       if (this.deviceInfo?.ip) {
+        this.connectIpModal.setLocalIp(this.deviceInfo.ip);
         const receiverIp = document.getElementById("receiver-ip-display");
         if (receiverIp) {
           receiverIp.textContent = `${this.deviceInfo.ip}:${this.deviceInfo.port || 5000}`;

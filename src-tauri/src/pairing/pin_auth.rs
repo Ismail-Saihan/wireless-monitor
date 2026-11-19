@@ -233,6 +233,15 @@ impl PinAuthManager {
         pin
     }
 
+    /// Explicitly configure a PIN for a peer pairing session (e.g. negotiated via remote signaling)
+    pub fn set_pin(&mut self, peer_id: &str, pin: &str) -> String {
+        let mut session = PairingSession::with_ttl(pin, peer_id, self.default_ttl);
+        session.max_attempts = self.default_max_attempts;
+        session.state = PairingState::PendingPin;
+        self.sessions.insert(peer_id.to_string(), session);
+        pin.to_string()
+    }
+
     /// Request a new incoming connection from a peer device
     ///
     /// Generates a random 4-digit PIN, creates a session in `PendingApproval` state,

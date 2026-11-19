@@ -113,6 +113,7 @@ def verify_phase3_interfaces():
         "respond_to_request",
         "get_stream_settings",
         "set_stream_settings",
+        "connect_to_ip",
     ]
 
     for cmd in required_commands:
@@ -856,6 +857,13 @@ def test_packaging_bundle_configuration():
     has_driver_res = any("drivers/windows" in r or "drivers\\windows" in r for r in resources)
     assert has_driver_res, f"Driver mapping missing in bundle.resources: {resources}"
 
+    # NSIS Windows Configuration & Turnkey Driver Hooks
+    windows_conf = bundle.get("windows", {})
+    nsis_conf = windows_conf.get("nsis", {})
+    assert nsis_conf.get("installMode") == "perMachine", f"Expected nsis.installMode == 'perMachine', got {nsis_conf.get('installMode')}"
+    assert nsis_conf.get("installerHooks") == "nsis/installerHooks.nsh", f"Expected nsis.installerHooks == 'nsis/installerHooks.nsh', got {nsis_conf.get('installerHooks')}"
+    assert os.path.isfile("src-tauri/nsis/installerHooks.nsh"), "src-tauri/nsis/installerHooks.nsh must exist"
+
     # Debian dependencies
     deb_deps = bundle.get("linux", {}).get("deb", {}).get("depends", [])
     for dep in ["libpipewire-0.3-0", "libdbus-1-3", "libxdo3"]:
@@ -929,12 +937,14 @@ def main():
         "src-tauri/src/stream/settings.rs",
         "src-tauri/src/stream/encoder.rs",
         "src-tauri/src/stream/mod.rs",
+        "src-tauri/src/signaling/mod.rs",
         "src-tauri/src/lib.rs",
         "src-tauri/tests/discovery_caps_test.rs",
         "src-tauri/tests/pairing_security_test.rs",
         "src-tauri/tests/settings_handshake_test.rs",
         "src-tauri/tests/packaging_test.rs",
         "ui/src/components/ApprovalModal.ts",
+        "ui/src/components/ConnectIpModal.ts",
         "ui/src/components/SettingsDrawer.ts",
         "ui/src/components/DeviceList.ts",
         "ui/src/components/PairingModal.ts",
