@@ -12,6 +12,8 @@ use std::collections::HashMap;
 use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
+#[allow(unused_imports)]
+use tracing::warn;
 
 use super::{DisplayConfig, VirtualDisplayManager};
 
